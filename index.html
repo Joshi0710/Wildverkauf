@@ -62,26 +62,26 @@
     <div class="chip" onclick="filterSales('bezahlt',this)">Bezahlt</div>
     <div class="chip" onclick="filterSales('gratis',this)">Gratis</div>
   </div>
+  <div class="chips" id="gibier-chips" style="margin-top:-6px">
+    <div class="chip chip-gibier active" onclick="filterGibier('alle',this)">Alle</div>
+    <div class="chip chip-gibier" onclick="filterGibier('Sanglier',this)">Sanglier</div>
+    <div class="chip chip-gibier" onclick="filterGibier('Chevreuil',this)">Chevreuil</div>
+  </div>
   <div class="chips" id="prod-chips" style="margin-top:-6px">
-    <div class="chip chip-prod active" onclick="filterProd('alle',this)">Alle Produkte</div>
-    <div class="chip chip-prod" onclick="filterProd('Burger|Sanglier',this)">Burger S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Keiswupp|Chevreuil',this)">Keiswupp Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Keiswupp|Sanglier',this)">Keiswupp S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Rohesser|Sanglier',this)">Rohesser S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Wainzossis|Sanglier',this)">Wainzossis S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Wainzossis|Chevreuil',this)">Wainzossis Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Salami|Sanglier',this)">Salami S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Reck|Chevreuil',this)">Reck Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Reck|Sanglier',this)">Reck S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Ragout|Chevreuil',this)">Ragout Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Ragout|Sanglier',this)">Ragout S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Gigue|Chevreuil',this)">Gigue Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Filets|Sanglier',this)">Filets S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Filets|Chevreuil',this)">Filets Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Grillwurst|Sanglier',this)">Grillwurst S.</div>
-    <div class="chip chip-prod" onclick="filterProd('Paté|Chevreuil',this)">Paté Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Reireck|Chevreuil',this)">Reireck Ch.</div>
-    <div class="chip chip-prod" onclick="filterProd('Hämmchen|Chevreuil',this)">Hämmchen Ch.</div>
+    <div class="chip chip-prod active" onclick="filterProd('alle',this)">Alle</div>
+    <div class="chip chip-prod" onclick="filterProd('Burger',this)">Burger</div>
+    <div class="chip chip-prod" onclick="filterProd('Keiswupp',this)">Keiswupp</div>
+    <div class="chip chip-prod" onclick="filterProd('Rohesser',this)">Rohesser</div>
+    <div class="chip chip-prod" onclick="filterProd('Wainzossis',this)">Wainzossis</div>
+    <div class="chip chip-prod" onclick="filterProd('Salami',this)">Salami</div>
+    <div class="chip chip-prod" onclick="filterProd('Reck',this)">Reck</div>
+    <div class="chip chip-prod" onclick="filterProd('Ragout',this)">Ragout</div>
+    <div class="chip chip-prod" onclick="filterProd('Gigue',this)">Gigue</div>
+    <div class="chip chip-prod" onclick="filterProd('Filets',this)">Filets</div>
+    <div class="chip chip-prod" onclick="filterProd('Grillwurst',this)">Grillwurst</div>
+    <div class="chip chip-prod" onclick="filterProd('Paté',this)">Paté</div>
+    <div class="chip chip-prod" onclick="filterProd('Reireck',this)">Reireck</div>
+    <div class="chip chip-prod" onclick="filterProd('Hämmchen',this)">Hämmchen</div>
   </div>
   <div id="sales-list"></div>
   </div>
@@ -235,6 +235,7 @@ let clients = ["Adis Civic","Alain","Alain Theis","Alice Nanquette","Ben Fretz",
 
 let currentFilter = 'alle';
 let currentProdFilter = 'alle';
+let currentGibierFilter = 'alle';
 let editMode = false;
 let undoStack = [];
 const MAX_UNDO = 20;
@@ -378,6 +379,13 @@ function filterSales(f, btn) {
   renderSales();
 }
 
+function filterGibier(f, btn) {
+  currentGibierFilter = f;
+  document.querySelectorAll('.chip-gibier').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  renderSales();
+}
+
 function filterProd(f, btn) {
   currentProdFilter = f;
   document.querySelectorAll('.chip-prod').forEach(c => c.classList.remove('active'));
@@ -394,11 +402,10 @@ function getFilteredSales() {
     else if (currentFilter === 'bezahlt') matchF = isPaid(s);
     else if (currentFilter === 'gratis') matchF = isGratis(s);
     let matchP = true;
-    if (currentProdFilter !== 'alle') {
-      const [prod, gibier] = currentProdFilter.split('|');
-      matchP = (s.p||'') === prod && (s.g||'').toLowerCase() === gibier.toLowerCase();
-    }
-    return matchQ && matchF && matchP;
+    if (currentProdFilter !== 'alle') matchP = (s.p||'') === currentProdFilter;
+    let matchG = true;
+    if (currentGibierFilter !== 'alle') matchG = (s.g||'').toLowerCase() === currentGibierFilter.toLowerCase();
+    return matchQ && matchF && matchP && matchG;
   });
 }
 
