@@ -912,9 +912,14 @@ const BUILTIN_DELIVERIES = deliveries.map(d=>({...d}));
 async function initApp() {
   showLoader(true);
   try {
-    const [sData, dData] = await Promise.all([
-      sbFetch('wv_sales?select=count'),
-      sbFetch('wv_deliveries?select=count')
+    // Add 5 second timeout
+    const timeout = new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 5000));
+    const [sData, dData] = await Promise.race([
+      Promise.all([
+        sbFetch('wv_sales?select=count'),
+        sbFetch('wv_deliveries?select=count')
+      ]),
+      timeout.then(() => { throw new Error('timeout'); })
     ]);
     const sCount = sData ? (Array.isArray(sData) ? sData.length : (sData[0]?.count||0)) : 0;
 
@@ -964,6 +969,11 @@ async function initApp() {
     }
   } catch(e) {
     console.error('Init fehler:', e);
+    // Fallback: use builtin data
+    if (BUILTIN_SALES.length > 0) {
+      sales = BUILTIN_SALES.map(s=>({...s}));
+      deliveries = BUILTIN_DELIVERIES.map(d=>({...d}));
+    }
   }
   showLoader(false);
   renderOverview();
