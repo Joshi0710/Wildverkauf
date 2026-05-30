@@ -436,6 +436,8 @@ function getFiltered() {
 }
 
 // ===== RENDER ALL =====
+function toggleDel(el){el.nextElementSibling.classList.toggle("open");}
+function getCursor(){return editMode?"pointer":"default";}
 function renderAll() {
   renderOverview();
   renderSales();
