@@ -19,6 +19,8 @@
       <div class="tab" onclick="showTab('abgeschlossen',this)">TFT L93</div>
     </div>
     <div style="padding:0 10px 0 6px;display:flex;align-items:center;gap:6px;flex-shrink:0">
+      <button id="mode-view" onclick="setMode(false)" style="background:#8bc34a;color:#fff;border:1px solid #8bc34a;border-radius:6px 0 0 6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s">👁 Anzeigen</button><button id="mode-edit" onclick="setMode(true)" style="background:transparent;color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.25);border-top-right-radius:6px;border-bottom-right-radius:6px;padding:4px 12px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s">✏️ Ändern</button>
+      <button id="undo-btn" onclick="undo()" disabled style="opacity:0.35;background:transparent;color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s" title="Nichts rückgängig zu machen">↩ Rückgängig</button>
       <button id="save-btn" onclick="saveData()" style="background:transparent;color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s">💾 Speichern</button>
     </div>
     <div style="padding:0 10px 0 0;display:flex;gap:4px;flex-shrink:0" id="year-btns">
@@ -213,6 +215,9 @@ let deliveries = [{"id":"SM1859","dt":"07/06/24","kg":"27","m":232.0,"rc":304.0,
 let clients = ["Adis Civic","Alain","Alain Theis","Alice Nanquette","Ben Fretz","Benji Schleich","Carole Diederich","Chantal Cabolet","Christiane Kreutz","Christiane Peschon","Christiane Shinn","Christine Berna","Claudine Ooms","Clients Patrick","Clients Patrick (Gast)","Clients Patrick (Guy Schon)","Clients Patrick (Guy)","Clients Patrick (Lanners Romain)","Clients Patrick (Marc Weber)","Clients Patrick (Marc)","Clients Patrick (Waxweiler Anne-Marie)","Clients Patrick Camille","Clients Serge","Conny H","Conny H Parents","Corinne Mathay Oestreicher","Daniel Max","Danielle Majerus","David Pereira","Ed Meyer","Eis Juegt","Eva Konyha","Gaston Feltgen","Gerard L.","Goeders Marc","Grevig Max","Grillen bei der Bud 02/05/26","Guy M","Heinz","Irène Duhr","Isabelle Sentges","Jean Claude Thines","Jeff Kill","Jerome","Jessica Hottua","Jim","Joana Schweig","Joelle Claus","Johanna","Kai Hansen","Laurent Roder","Leners Jerry","Luc Hubert","Lucien Bock","Mamm (Gerard)","Manuela Collin","Marc G","Marc Glodt","Marc Keilen","Marco Shinn","Marianne Weis","Martine Wangen","Mike Flick","Mike Peppone","Misch Fellens","Nadia Corner","Nathalie H","Nathalie Jurga","Neckel Hubsch","Nicole Schaak","Patrick","Pit Bemtgen","René","Romain Marx","Sabine G.","Sam Damit","Sandra Deckenbrunnen","Sandy Collin","Schweiermamm Serge","Serge","Serge Knaus","Steve C.","Steve Hermes","Steve Strehlen","Thilmany (Bauer)","Tina B","Viviane Baulisch","Weber Daniel","Weigel Georges","Yannick B."];
 
 let currentFilter = 'alle';
+let editMode = false;
+let undoStack = [];
+const MAX_UNDO = 20;
 let currentYear = 2026;
 let editingId = null;
 let dProds = [];
@@ -298,7 +303,7 @@ function renderOverview() {
       '<th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600">Total</th>' +
       '</tr></thead><tbody>' +
       todoSales.map(s => `
-        <tr onclick="openEditModal(${s.i})" style="cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <tr onclick="openEditModal(${s.i})" style="cursor:${editMode?'pointer':'default'};border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
           <td style="padding:10px 12px;font-weight:500">${s.c}</td>
           <td style="padding:10px 12px;color:var(--muted)">${s.q}× ${s.p}<br><span style="font-size:11px">${s.g}</span></td>
           <td style="padding:10px 6px;text-align:center">${(s.l||'').toUpperCase()==='OK'
@@ -474,6 +479,7 @@ function renderAbrechnung() {
 
 // ========== MODALS ==========
 function openNewOrderModal() {
+  if (!editMode) { alert('Bitte zuerst auf "✏️ Ändern" klicken'); return; }
   // Fill datalist
   const dl = document.getElementById('clients-list');
   dl.innerHTML = clients.map(c=>`<option value="${c}">`).join('');
@@ -481,6 +487,7 @@ function openNewOrderModal() {
 }
 
 function openEditModal(id) {
+  if (!editMode) return;
   const s = sales.find(x=>x.i===id);
   if (!s) return;
   editingId = id;
@@ -498,6 +505,7 @@ function openEditModal(id) {
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 function addOrder() {
+  saveUndo('Neue Bestellung');
   const client = document.getElementById('new-client').value.trim();
   const produit = document.getElementById('new-produit').value;
   const qte = parseInt(document.getElementById('new-qte').value)||1;
@@ -516,6 +524,7 @@ function addOrder() {
 }
 
 function saveEditOrder() {
+  saveUndo('Bestellung bearbeiten');
   const s = sales.find(x=>x.i===editingId);
   if (!s) return;
   s.c = document.getElementById('edit-client').value.trim();
@@ -532,6 +541,7 @@ function saveEditOrder() {
 }
 
 function deleteOrder() {
+  saveUndo('Bestellung löschen');
   if (!confirm('Bestellung wirklich löschen?')) return;
   sales = sales.filter(s=>s.i!==editingId);
   closeModal('edit-modal');
@@ -606,8 +616,74 @@ document.querySelectorAll('.modal-bg').forEach(bg => {
 });
 
 // ========== INIT ==========
+function setMode(edit) {
+  editMode = edit;
+  const viewBtn = document.getElementById('mode-view');
+  const editBtn = document.getElementById('mode-edit');
+  if (edit) {
+    viewBtn.style.background = 'transparent';
+    viewBtn.style.color = 'rgba(255,255,255,0.6)';
+    viewBtn.style.borderColor = 'rgba(255,255,255,0.25)';
+    viewBtn.style.fontWeight = '500';
+    editBtn.style.background = '#e67e22';
+    editBtn.style.color = '#fff';
+    editBtn.style.borderColor = '#e67e22';
+    editBtn.style.fontWeight = '600';
+  } else {
+    viewBtn.style.background = '#8bc34a';
+    viewBtn.style.color = '#fff';
+    viewBtn.style.borderColor = '#8bc34a';
+    viewBtn.style.fontWeight = '600';
+    editBtn.style.background = 'transparent';
+    editBtn.style.color = 'rgba(255,255,255,0.6)';
+    editBtn.style.borderColor = 'rgba(255,255,255,0.25)';
+    editBtn.style.fontWeight = '500';
+  }
+  renderSales();
+  renderAbgeschlossen();
+}
+
+function saveUndo(description) {
+  undoStack.push({
+    description: description,
+    sales: JSON.parse(JSON.stringify(sales)),
+    deliveries: JSON.parse(JSON.stringify(deliveries))
+  });
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  updateUndoBtn();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const state = undoStack.pop();
+  sales = state.sales;
+  deliveries = state.deliveries;
+  updateUndoBtn();
+  renderOverview();
+  renderSales();
+  renderDeliveries();
+  renderAbrechnung();
+  renderAbgeschlossen();
+}
+
+function updateUndoBtn() {
+  const btn = document.getElementById('undo-btn');
+  if (!btn) return;
+  if (undoStack.length === 0) {
+    btn.style.opacity = '0.35';
+    btn.disabled = true;
+    btn.title = 'Nichts rückgängig zu machen';
+  } else {
+    btn.style.opacity = '1';
+    btn.disabled = false;
+    btn.title = 'Rückgängig: ' + undoStack[undoStack.length-1].description;
+  }
+}
+
 function setVirement(checkbox) {
+  if (!editMode) { checkbox.checked = false; alert('Bitte zuerst auf "✏️ Ändern" klicken'); return; }
   const clientName = checkbox.dataset.client;
+  saveUndo('Virement ' + clientName);
   const today = new Date();
   const dd = String(today.getDate()).padStart(2,'0');
   const mm = String(today.getMonth()+1).padStart(2,'0');
@@ -842,7 +918,7 @@ async function initApp() {
   renderAbgeschlossen();
 }
 
-initApp();
+initApp().then(() => updateUndoBtn());
 
 </script>
 </body>
