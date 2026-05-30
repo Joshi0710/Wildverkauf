@@ -444,10 +444,7 @@ function renderAbrechnung() {
   // By product
   const prodMap = {};
   // product stats from sales
-  salesForYear().filter(s=>!isGratis(s)).forEach(s => { const p={produit:s.p,vendu:s.q,recette:s.t}; if(!prodMap[p.n])prodMap[p.n]={vendu:0,recette:0}; prodMap[p.n].vendu+=p.v; prodMap[p.n].recette+=p.rc; });
-  [].forEach(d => d.pr.forEach(p => {
-  }));
-  // metzger per product not tracked, so skip
+  salesForYear().filter(s=>!isGratis(s)).forEach(s => { if(!prodMap[s.p])prodMap[s.p]={vendu:0,recette:0}; prodMap[s.p].vendu+=s.q; prodMap[s.p].recette+=s.t; });
   const prodEntries = Object.entries(prodMap).sort((a,b)=>b[1].recette-a[1].recette);
   const pt = document.getElementById('prod-table');
   pt.innerHTML = `<thead><tr><th>Produkt</th><th>Pakete</th><th>Einnahmen</th></tr></thead><tbody>` +
