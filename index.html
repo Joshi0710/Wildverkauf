@@ -237,7 +237,7 @@
     </div>
   </div>
   <div class="section-title">Bestehende Produkte</div>
-  <div class="card" id="products-list"></div>
+  <div class="card" id="prod-mgr-list"></div>
   </div>
 </div>
 
@@ -281,6 +281,7 @@ function showTab(id, tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   tab.classList.add('active');
+  if (id === 'produkte') renderProducts();
 }
 
 // ========== OVERVIEW ==========
@@ -973,7 +974,7 @@ async function initApp() {
 }
 
 function renderProducts() {
-  const el = document.getElementById('products-list');
+  const el = document.getElementById('prod-mgr-list');
   if (!el) return;
   el.innerHTML = '<div class="card-body">' +
     products.map((p,i) => `
