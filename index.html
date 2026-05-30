@@ -130,9 +130,8 @@
     </div>
     <div class="form-row">
       <div class="field"><label>Produkt</label>
-        <select id="new-produit">
-          <option>Burger</option>
-        </select>
+        <input type="text" id="new-produit" list="products-list-data" placeholder="Produkt eingeben...">
+        <datalist id="products-list-data"></datalist>
       </div>
       <div class="field"><label>Menge</label><input type="number" id="new-qte" value="1" min="1"></div>
     </div>
@@ -168,9 +167,7 @@
     <div class="field"><label>Kunde</label><input type="text" id="edit-client" list="clients-list"></div>
     <div class="form-row">
       <div class="field"><label>Produkt</label>
-        <select id="edit-produit">
-          <option>Burger</option>
-        </select>
+        <input type="text" id="edit-produit" list="products-list-data" placeholder="Produkt eingeben...">
       </div>
       <div class="field"><label>Menge</label><input type="number" id="edit-qte" min="1"></div>
     </div>
@@ -559,7 +556,12 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 function addOrder() {
   saveUndo('Neue Bestellung');
   const client = document.getElementById('new-client').value.trim();
-  const produit = document.getElementById('new-produit').value;
+  const produit = document.getElementById('new-produit').value.trim();
+  if (produit && !products.includes(produit)) {
+    products.push(produit);
+    updateProductDropdowns();
+    updateProductChips();
+  }
   const qte = parseInt(document.getElementById('new-qte').value)||1;
   const emballage = document.getElementById('new-emballage').value.trim();
   const prix = parseFloat(document.getElementById('new-prix').value)||0;
@@ -1035,11 +1037,9 @@ function addProduct() {
 }
 
 function updateProductDropdowns() {
-  const opts = products.map(p => '<option>' + p + '</option>').join('');
-  ['new-produit','edit-produit'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { const cur = el.value; el.innerHTML = opts; el.value = cur; }
-  });
+  // Update datalist for autocomplete
+  const dl = document.getElementById('products-list-data');
+  if (dl) dl.innerHTML = products.map(p => '<option value="' + p + '">').join('');
 }
 
 function updateProductChips() {
