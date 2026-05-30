@@ -773,14 +773,76 @@ function showLoader(show) {
   el.style.display = show ? 'flex' : 'none';
 }
 
-// Load from Supabase on startup, then render
-loadData().then(() => {
+// Load from Supabase on startup
+// If DB is empty → auto-upload built-in data
+const BUILTIN_SALES = sales.map(s=>({...s}));
+const BUILTIN_DELIVERIES = deliveries.map(d=>({...d}));
+
+async function initApp() {
+  showLoader(true);
+  try {
+    const [sData, dData] = await Promise.all([
+      sbFetch('wv_sales?select=count'),
+      sbFetch('wv_deliveries?select=count')
+    ]);
+    const sCount = sData ? (Array.isArray(sData) ? sData.length : (sData[0]?.count||0)) : 0;
+
+    if (sCount == 0) {
+      // DB empty → upload built-in data automatically
+      showLoader(true);
+      document.getElementById('app-loader').innerHTML = '<div style="text-align:center"><div style="font-size:32px;margin-bottom:12px">🦌</div><div>Erste Einrichtung...<br><small style="opacity:.7">Daten werden hochgeladen</small></div></div>';
+      
+      const salesData = BUILTIN_SALES.map(s => ({
+        id:s.i, c:s.c, q:s.q, e:s.e, p:s.p,
+        x:s.x, t:s.t, l:s.l||'', z:s.z||'',
+        g:s.g||'', r:s.r||'', y:s.y||2026
+      }));
+      const deliveriesData = BUILTIN_DELIVERIES.map(d => ({
+        id:d.id, dt:d.dt||'', kg:String(d.kg||''),
+        m:d.m||0, rc:d.rc||0, bn:d.bn||0, y:d.y||2026,
+        products:JSON.stringify(d.pr||[])
+      }));
+      // Upload in batches
+      for (let i=0; i<salesData.length; i+=100) {
+        await sbFetch('wv_sales', {
+          method:'POST',
+          headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+          body:JSON.stringify(salesData.slice(i,i+100))
+        });
+      }
+      await sbFetch('wv_deliveries', {
+        method:'POST',
+        headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify(deliveriesData)
+      });
+    } else {
+      // Load from DB
+      const [sd, dd] = await Promise.all([
+        sbFetch('wv_sales?select=*&order=id'),
+        sbFetch('wv_deliveries?select=*&order=id')
+      ]);
+      if (sd && sd.length > 0) {
+        sales = sd.map(s=>({i:s.id,c:s.c,q:s.q,e:s.e,p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y}));
+      }
+      if (dd && dd.length > 0) {
+        deliveries = dd.map(d=>({
+          id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y,
+          pr:typeof d.products==='string'?JSON.parse(d.products):(d.products||[])
+        }));
+      }
+    }
+  } catch(e) {
+    console.error('Init fehler:', e);
+  }
+  showLoader(false);
   renderOverview();
   renderSales();
   renderDeliveries();
   renderAbrechnung();
   renderAbgeschlossen();
-});
+}
+
+initApp();
 
 </script>
 </body>
