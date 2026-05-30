@@ -602,7 +602,8 @@ function addOrder() {
   const q=parseInt(document.getElementById('n-qte').value)||1;
   const x=parseFloat(document.getElementById('n-prix').value)||0;
   const newId=sales.length?Math.max(...sales.map(s=>s.i))+1:0;
-  sales.push({i:newId,c,q,e:document.getElementById('n-emb').value.trim(),p,x,t:Math.round(x*q*100)/100,l:document.getElementById('n-liv').value,z:document.getElementById('n-pay').value,g:document.getElementById('n-gib').value,r:document.getElementById('n-rem').value.trim(),y:currentYear==='all'?2026:currentYear});
+  sales.push({i:newId,c,q,e:document.getElementById('n-emb').value.trim(),p,x,t:Math.round(x*q*100)/100,l:document.getElementById('n-liv').value === '' && document.getElementById('n-pay').value === 'gratuit' ? 'OK' : document.getElementById('n-liv').value,
+      z:(document.getElementById('n-pay').value === 'gratuit' ? '' : document.getElementById('n-pay').value),g:document.getElementById('n-gib').value,r:document.getElementById('n-rem').value.trim(),y:currentYear==='all'?2026:currentYear});
   closeModal('modal-new');
   renderAll();
 }
@@ -635,7 +636,9 @@ function saveEdit() {
   s.t=Math.round(s.x*s.q*100)/100;
   s.g=document.getElementById('e-gib').value;
   s.l=document.getElementById('e-liv').value;
-  s.z=document.getElementById('e-pay').value;
+  const payVal = document.getElementById('e-pay').value;
+  s.z = (payVal === 'gratuit') ? '' : payVal;
+  if (payVal === 'gratuit' && !s.r) s.r = 'gratuit';
   s.r=document.getElementById('e-rem').value.trim();
   closeModal('modal-edit');
   renderAll();
