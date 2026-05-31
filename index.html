@@ -311,6 +311,7 @@ let clients = ["Adis Civic","Alain","Alain Theis","Alice Nanquette","Ben Fretz",
 
 // ===== STATE =====
 let editMode = false;
+let hasUnsavedChanges = false;
 let currentYear = 2026;
 let filterStatus = 'alle';
 let filterGibier = 'alle';
@@ -338,6 +339,20 @@ async function sbFetch(path, opts={}) {
   return txt ? JSON.parse(txt) : null;
 }
 
+function updateSaveBtn() {
+  const btn = document.getElementById('btn-save');
+  if (!btn) return;
+  if (hasUnsavedChanges) {
+    btn.textContent = '💾 *';
+    btn.style.color = '#f39c12';
+    btn.style.borderColor = 'rgba(243,156,18,0.5)';
+  } else {
+    btn.textContent = '💾';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+  }
+}
+
 async function saveData() {
   const btn = document.getElementById('btn-save');
   btn.textContent = '⏳';
@@ -349,6 +364,7 @@ async function saveData() {
       await sbFetch('wv_sales', {method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(sd.slice(i,i+100))});
     }
     await sbFetch('wv_deliveries', {method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(dd)});
+    hasUnsavedChanges = false; updateSaveBtn();
     btn.textContent = '✓';
     btn.style.color = '#8bc34a';
     setTimeout(() => { btn.textContent = '💾'; btn.style.color = ''; btn.disabled = false; }, 2000);
@@ -462,6 +478,20 @@ function getFiltered() {
 // ===== RENDER ALL =====
 function toggleDel(el){el.nextElementSibling.classList.toggle("open");}
 function getCursor(){return editMode?"pointer":"default";}
+function updateStock(produit, qteChange) {
+  // Find the delivery with this product that has stock and reduce it
+  for (let i = deliveries.length-1; i >= 0; i--) {
+    const d = deliveries[i];
+    for (let j = 0; j < (d.pr||[]).length; j++) {
+      if (d.pr[j].n === produit && d.pr[j].st > 0) {
+        d.pr[j].v += qteChange;
+        d.pr[j].st = Math.max(0, d.pr[j].st - qteChange);
+        return;
+      }
+    }
+  }
+}
+
 function renderAll() {
   renderOverview();
   renderSales();
@@ -626,6 +656,7 @@ function setVirement(cb) {
   const rem='Virement du '+String(today.getDate()).padStart(2,'0')+'/'+String(today.getMonth()+1).padStart(2,'0')+'/'+String(today.getFullYear()).slice(-2);
   saveUndo('Virement '+name);
   sales.forEach(s=>{ if(s.c===name&&isDelivered(s)&&isPaid(s)&&!(s.r&&s.r.trim()))s.r=rem; });
+  hasUnsavedChanges = true; updateSaveBtn();
   setTimeout(()=>renderAll(),400);
 }
 
@@ -678,6 +709,8 @@ function saveEdit() {
   if(!s)return;
   saveUndo('Bestellung bearbeiten');
   s.c=document.getElementById('e-client').value.trim();
+  const oldQ = s.q;
+  const oldP = s.p;
   s.p=document.getElementById('e-prod').value.trim();
   s.q=parseInt(document.getElementById('e-qte').value)||1;
   s.x=parseFloat(document.getElementById('e-prix').value)||0;
@@ -688,6 +721,10 @@ function saveEdit() {
   s.z = (payVal === 'gratuit') ? '' : payVal;
   if (payVal === 'gratuit' && !s.r) s.r = 'gratuit';
   s.r=document.getElementById('e-rem').value.trim();
+  // Update stock if product or quantity changed
+  if (s.p !== oldP) { updateStock(oldP, -oldQ); updateStock(s.p, s.q); }
+  else if (s.q !== oldQ) { updateStock(s.p, s.q - oldQ); }
+  hasUnsavedChanges = true; updateSaveBtn();
   closeModal('modal-edit');
   renderAll();
 }
@@ -695,7 +732,10 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
+  const delSale = sales.find(s=>s.i===editingId);
+  if (delSale) updateStock(delSale.p, -delSale.q);
   sales=sales.filter(s=>s.i!==editingId);
+  hasUnsavedChanges = true; updateSaveBtn();
   closeModal('modal-edit');
   renderAll();
 }
@@ -736,11 +776,20 @@ function saveDelivery() {
   const rc=pr.reduce((a,p)=>a+p.rc,0);
   saveUndo('Neue Lieferung');
   deliveries.push({id,dt:dt?new Date(dt).toLocaleDateString('de-LU'):'',kg,m:metz,rc:Math.round(rc*100)/100,bn:Math.round((rc-metz)*100)/100,y:currentYear==='all'?2026:currentYear,pr});
+  hasUnsavedChanges = true; updateSaveBtn();
   closeModal('modal-del');
   renderAll();
 }
 
 // ===== INIT =====
+window.addEventListener('beforeunload', function(e) {
+  if (hasUnsavedChanges) {
+    e.preventDefault();
+    e.returnValue = 'Sie haben ungespeicherte Änderungen. Wollen Sie die Seite wirklich verlassen?';
+    return e.returnValue;
+  }
+});
+
 loadFromDB();
 </script>
 </body>
