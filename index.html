@@ -193,6 +193,8 @@ tbody tr:hover{background:#f9f7f4}
     <div class="card"><table class="ab-table" id="prod-table"></table></div>
     <div class="sec">Top Kunden</div>
     <div class="card" id="top-clients"></div>
+    <div class="sec">Gratisabgaben pro Kunde</div>
+    <div class="card" id="gratis-clients"></div>
     <div class="sec">Nach Lieferung</div>
     <div class="card" id="lief-rows"></div>
   </div>
@@ -580,6 +582,22 @@ function renderAbrechnung() {
   salesForYear().filter(s=>!isGratis(s)).forEach(s=>{ cm[s.c]=(cm[s.c]||0)+s.t; });
   const ce=Object.entries(cm).sort((a,b)=>b[1]-a[1]).slice(0,10);
   document.getElementById('top-clients').innerHTML='<div>'+ce.map(([n,t])=>'<div class="row"><div class="row-l"><div class="row-name">'+n+'</div></div><div class="row-r"><div class="row-amt">'+fmt(t)+'</div></div></div>').join('')+'</div>';
+
+  // Gratis by client
+  const gm={};
+  salesForYear().filter(s=>isGratis(s)).forEach(s=>{ if(!gm[s.c])gm[s.c]={sales:[],total:0}; gm[s.c].sales.push(s); gm[s.c].total+=s.t; });
+  const ge=Object.entries(gm).sort((a,b)=>b[1].total-a[1].total);
+  const gratisTotal=salesForYear().filter(s=>isGratis(s)).reduce((a,s)=>a+s.t,0);
+  const gratisEl=document.getElementById('gratis-clients');
+  if(gratisEl){
+    if(!ge.length){
+      gratisEl.innerHTML='<div class="empty">Keine Gratisabgaben</div>';
+    } else {
+      gratisEl.innerHTML='<div>'+ge.map(([name,data])=>'<div class="row"><div class="row-l"><div class="row-name">'+name+'</div><div class="row-sub" style="font-size:11px">'+data.sales.map(s=>s.q+'× '+s.p).join(', ')+'</div></div><div class="row-r"><div class="row-amt r">'+fmt(data.total)+'</div></div></div>').join('')+
+        '<div class="row" style="background:#fbeaea"><div class="row-l"><div class="row-name" style="font-weight:700">Total Warenwert gratis</div></div><div class="row-r"><div class="row-amt r" style="font-size:16px">'+fmt(gratisTotal)+'</div></div></div>'+
+        '</div>';
+    }
+  }
 
   // By delivery
   document.getElementById('lief-rows').innerHTML='<div>'+deliveriesForYear().slice().reverse().map(d=>'<div class="row"><div class="row-l"><div class="row-name">'+d.id+(d.dt?' · '+d.dt:'')+'</div><div class="row-sub">Metzger '+fmt(d.m)+' · Verkauft '+fmt(d.rc)+'</div></div><div class="row-r"><div class="row-amt '+(d.bn>=0?'g':'r')+'">'+(d.bn>=0?'+':'')+fmt(d.bn)+'</div></div></div>').join('')+'</div>';
