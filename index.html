@@ -492,7 +492,23 @@ function updateStock(produit, qteChange) {
   }
 }
 
+function syncStockFromSales() {
+  // Recalculate vendu and reserve for each delivery product from sales
+  deliveries.forEach(d => {
+    (d.pr||[]).forEach(p => {
+      // Count sales matching this product
+      const matching = sales.filter(s => s.p === p.n && !isGratis(s));
+      const vendu = matching.filter(s => isDelivered(s)).reduce((a,s)=>a+s.q, 0);
+      const reserved = matching.filter(s => !isDelivered(s)).reduce((a,s)=>a+s.q, 0);
+      p.v = vendu;
+      p.rs = reserved;
+      p.st = Math.max(0, p.q - vendu - reserved);
+    });
+  });
+}
+
 function renderAll() {
+  syncStockFromSales();
   renderOverview();
   renderSales();
   renderDeliveries();
@@ -538,6 +554,7 @@ function renderOverview() {
   document.getElementById('open-badge').textContent = todo.length||'';
   document.getElementById('badge-todo').innerHTML = todo.length ? '<span style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700">'+todo.length+'</span>' : '';
 
+  todo.sort((a,b)=>a.c.localeCompare(b.c));
   const tl = document.getElementById('todo-list');
   if (!todo.length) {
     tl.innerHTML = '<div class="card"><div class="empty">Alles erledigt! ✓</div></div>';
@@ -566,6 +583,7 @@ function renderOverview() {
 function renderSales() {
   const list = getFiltered();
   const el = document.getElementById('sales-list');
+  list.sort((a,b)=>a.c.localeCompare(b.c));
   if (!list.length) { el.innerHTML='<div class="card"><div class="empty">Keine Einträge gefunden</div></div>'; return; }
   el.innerHTML = '<div class="card">'+list.map(s => {
     const paid = isPaid(s), del = isDelivered(s), grat = isGratis(s);
