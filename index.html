@@ -493,16 +493,16 @@ function updateStock(produit, qteChange) {
 }
 
 function syncStockFromSales() {
-  // Recalculate vendu and reserve for each delivery product from sales
+  // Only recalculate reserve (rs) from undelivered sales
+  // vendu and st come from the delivery data as loaded
+  // We just update rs to reflect current undelivered orders
+  const undelivered = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    undelivered[s.p] = (undelivered[s.p] || 0) + s.q;
+  });
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
-      // Count sales matching this product
-      const matching = sales.filter(s => s.p === p.n && !isGratis(s));
-      const vendu = matching.filter(s => isDelivered(s)).reduce((a,s)=>a+s.q, 0);
-      const reserved = matching.filter(s => !isDelivered(s)).reduce((a,s)=>a+s.q, 0);
-      p.v = vendu;
-      p.rs = reserved;
-      p.st = Math.max(0, p.q - vendu - reserved);
+      p.rs = undelivered[p.n] || 0;
     });
   });
 }
