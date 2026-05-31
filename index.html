@@ -212,7 +212,29 @@ tbody tr:hover{background:#f9f7f4}
     <div class="modal-hdr"><div class="modal-title">Neue Bestellung</div><button class="modal-close" onclick="closeModal('modal-new')">✕</button></div>
     <div class="field"><label>Kunde</label><input id="n-client" list="dl-clients" placeholder="Name eingeben..."><datalist id="dl-clients"></datalist></div>
     <div class="form-row">
-      <div class="field"><label>Produkt</label><input id="n-prod" list="dl-prods" placeholder="Produkt..."><datalist id="dl-prods"></datalist></div>
+      <div class="field"><label>Produkt</label><input id="n-prod" list="dl-prods" placeholder="Produkt..."><datalist id="dl-prods"></datalist>
+    <datalist id="dl-rem">
+      <option value="gratuit">
+      <option value="Bezillt beim Patrick">
+      <option value="Bezillt beim Serge">
+      <option value="Iwerweist selwer">
+      <option value="Bezillt beim Serge">
+      <option value="Virement du 23/12/25">
+      <option value="Virement du 28.11.24">
+      <option value="Virement du 28/01/26">
+      <option value="Virement du 30.01.25">
+      <option value="Virement du 26.09.24">
+      <option value="Virement du 27/03/25">
+      <option value="Virement du 22/07/25">
+      <option value="Virement du 19/06/24">
+      <option value="Virement du 17/03/26">
+      <option value="Virement du 28.08.24">
+      <option value="Virement du 19/12/24">
+      <option value="Virement du 26/06/25">
+      <option value="Virement du 27/05/26">
+      <option value="Virement du 26/06/24">
+      <option value="Virement du 02/04/26">
+    </datalist></div>
       <div class="field"><label>Menge</label><input type="number" id="n-qte" value="1" min="1"></div>
     </div>
     <div class="form-row">
@@ -225,7 +247,7 @@ tbody tr:hover{background:#f9f7f4}
     </div>
     <div class="form-row">
       <div class="field"><label>Bezahlt</label><select id="n-pay" onchange="handlePayChange('n')"><option value="">Nein</option><option value="OK">Ja</option><option value="gratuit">Gratuit</option></select></div>
-      <div class="field"><label>Bemerkung</label><input id="n-rem" placeholder="z.B. Virement..."></div>
+      <div class="field"><label>Bemerkung</label><input id="n-rem" list="dl-rem" placeholder="z.B. Virement, gratuit..."></div>
     </div>
     <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:6px" onclick="addOrder()">Speichern</button>
   </div>
@@ -248,7 +270,7 @@ tbody tr:hover{background:#f9f7f4}
       <div class="field"><label>Geliefert</label><select id="e-liv"><option value="">Nein</option><option value="OK">Ja</option></select></div>
       <div class="field"><label>Bezahlt</label><select id="e-pay" onchange="handlePayChange('e')"><option value="">Nein</option><option value="OK">Ja</option><option value="gratuit">Gratuit</option></select></div>
     </div>
-    <div class="field"><label>Bemerkung</label><input id="e-rem"></div>
+    <div class="field"><label>Bemerkung</label><input id="e-rem" list="dl-rem"></div>
     <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-p" style="flex:1;justify-content:center" onclick="saveEdit()">Speichern</button>
       <button class="btn" style="color:#c0392b;border-color:#c0392b" onclick="delOrder()">Löschen</button>
@@ -459,6 +481,12 @@ function updateDataLists() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = pr.map(p=>'<option value="'+p+'">').join('');
   });
+  // Update remarks datalist with dynamic entries from sales
+  const dlRem = document.getElementById('dl-rem');
+  if (dlRem) {
+    const remSet = new Set([...dlRem.querySelectorAll('option')].map(o=>o.value));
+    sales.forEach(s => { if (s.r && s.r.trim() && !remSet.has(s.r.trim())) { remSet.add(s.r.trim()); const opt=document.createElement('option'); opt.value=s.r.trim(); dlRem.appendChild(opt); }});
+  }
 }
 
 // ===== OVERVIEW =====
