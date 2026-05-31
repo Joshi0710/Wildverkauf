@@ -492,7 +492,7 @@ function updateDataLists() {
 // ===== OVERVIEW =====
 function renderOverview() {
   const ys = salesForYear();
-  const totalV = deliveriesForYear().reduce((a,d)=>a+d.rc,0);
+  const totalV = salesForYear().filter(s=>!isGratis(s)).reduce((a,s)=>a+s.t,0);
   const totalM = deliveriesForYear().reduce((a,d)=>a+d.m,0);
   const notPaid = ys.filter(s=>!isPaid(s)&&!isGratis(s));
   const notDel = ys.filter(s=>!isDelivered(s)&&!isGratis(s));
@@ -561,7 +561,7 @@ function renderDeliveries() {
 // ===== ABRECHNUNG =====
 function renderAbrechnung() {
   const totalM = deliveriesForYear().reduce((a,d)=>a+d.m,0);
-  const totalV = deliveriesForYear().reduce((a,d)=>a+d.rc,0);
+  const totalV = salesForYear().filter(s=>!isGratis(s)).reduce((a,s)=>a+s.t,0);
   document.getElementById('ab-m').textContent=fmt(totalM);
   document.getElementById('ab-v').textContent=fmt(totalV);
   document.getElementById('ab-e').textContent=fmt(totalV-totalM);
