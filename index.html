@@ -660,10 +660,21 @@ function renderTFT() {
   const grand=done.reduce((a,s)=>a+s.t,0);
   const el=document.getElementById('tft-list');
   if(!sorted.length){el.innerHTML='<div class="card"><div class="empty">Keine Einträge</div></div>';return;}
-  el.innerHTML='<div class="card"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f9f7f4;border-bottom:1px solid rgba(0,0,0,0.07)"><th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Kunde</th><th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Produkte</th><th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Total</th><th style="padding:8px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Virement</th></tr></thead><tbody>'+
+  el.innerHTML='<div class="card"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f9f7f4;border-bottom:1px solid rgba(0,0,0,0.07)"><th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Kunde</th><th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Produkte</th><th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Total</th><th style="padding:8px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Virement<br><input type="checkbox" id="cb-all" class="cb" onclick="selectAllVirement(this)" title="Alle ausw&auml;hlen" style="margin-top:4px"></th></tr></thead><tbody>'+
     sorted.map(([name,data])=>'<tr style="border-bottom:1px solid rgba(0,0,0,0.06)"><td style="padding:9px 12px;font-weight:500">'+name+'</td><td style="padding:9px 12px;color:#6b5d4a;font-size:12px">'+data.sales.map(s=>s.q+'× '+s.p).join(', ')+'</td><td style="padding:9px 12px;text-align:right;font-weight:600">'+fmt(data.total)+'</td><td style="padding:9px 10px;text-align:center"><input type="checkbox" class="cb" data-client="'+name+'" onchange="setVirement(this)"></td></tr>').join('')+
     '<tr style="background:#f9f7f4;border-top:2px solid rgba(0,0,0,0.1)"><td colspan="2" style="padding:9px 12px;font-weight:700">'+sorted.length+' Kunden</td><td style="padding:9px 12px;text-align:right;font-weight:700;color:#4a7c2f">'+fmt(grand)+'</td><td></td></tr>'+
     '</tbody></table></div>';
+}
+
+function selectAllVirement(masterCb) {
+  if (!editMode) { masterCb.checked = false; alert('Bitte zuerst Aendern-Modus aktivieren'); return; }
+  const checkboxes = document.querySelectorAll('#tft-list input[type="checkbox"]:not(#cb-all)');
+  checkboxes.forEach(cb => {
+    if (masterCb.checked && !cb.checked) {
+      cb.checked = true;
+      setVirement(cb);
+    }
+  });
 }
 
 function setVirement(cb) {
