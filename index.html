@@ -360,10 +360,13 @@ async function saveData() {
   try {
     const sd = sales.map(s => ({id:s.i,c:s.c,q:s.q,e:s.e,p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
     const dd = deliveries.map(d => ({id:d.id,dt:d.dt||'',kg:String(d.kg||''),m:d.m||0,rc:d.rc||0,bn:d.bn||0,y:d.y||2026,products:JSON.stringify(d.pr||[])}));
+    // Delete all and reinsert to handle deletions
+    await sbFetch('wv_sales?id=gte.0', {method:'DELETE', headers:{}});
     for (let i=0; i<sd.length; i+=100) {
-      await sbFetch('wv_sales', {method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(sd.slice(i,i+100))});
+      await sbFetch('wv_sales', {method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(sd.slice(i,i+100))});
     }
-    await sbFetch('wv_deliveries', {method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(dd)});
+    await sbFetch('wv_deliveries?id=neq.NEVER', {method:'DELETE', headers:{}});
+    await sbFetch('wv_deliveries', {method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(dd)});
     hasUnsavedChanges = false; updateSaveBtn();
     btn.textContent = '✓';
     btn.style.color = '#8bc34a';
@@ -479,14 +482,23 @@ function getFiltered() {
 function toggleDel(el){el.nextElementSibling.classList.toggle("open");}
 function getCursor(){return editMode?"pointer":"default";}
 function updateStock(produit, qteChange) {
-  // Find the delivery with this product that has stock and reduce it
+  if (qteChange === 0) return;
   for (let i = deliveries.length-1; i >= 0; i--) {
     const d = deliveries[i];
     for (let j = 0; j < (d.pr||[]).length; j++) {
-      if (d.pr[j].n === produit && d.pr[j].st > 0) {
-        d.pr[j].v += qteChange;
-        d.pr[j].st = Math.max(0, d.pr[j].st - qteChange);
-        return;
+      const p = d.pr[j];
+      if (p.n === produit) {
+        if (qteChange > 0 && p.st >= qteChange) {
+          // Reduce stock
+          p.v = (p.v||0) + qteChange;
+          p.st = Math.max(0, p.st - qteChange);
+          return;
+        } else if (qteChange < 0) {
+          // Restore stock (delete/reduce)
+          p.v = Math.max(0, (p.v||0) + qteChange);
+          p.st = Math.min(p.q, p.st - qteChange);
+          return;
+        }
       }
     }
   }
@@ -505,6 +517,14 @@ function syncStockFromSales() {
       p.rs = undelivered[p.n] || 0;
     });
   });
+}
+
+function handlePayChange(prefix) {
+  const pay = document.getElementById(prefix+'-pay').value;
+  if (pay === 'gratuit') {
+    document.getElementById(prefix+'-rem').value = 'gratuit';
+    document.getElementById(prefix+'-liv').value = 'OK';
+  }
 }
 
 function renderAll() {
@@ -661,7 +681,7 @@ function renderTFT() {
   const el=document.getElementById('tft-list');
   if(!sorted.length){el.innerHTML='<div class="card"><div class="empty">Keine Einträge</div></div>';return;}
   el.innerHTML='<div class="card"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f9f7f4;border-bottom:1px solid rgba(0,0,0,0.07)"><th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Kunde</th><th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Produkte</th><th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Total</th><th style="padding:8px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:#6b5d4a;font-weight:600">Virement<br><input type="checkbox" id="cb-all" class="cb" onclick="selectAllVirement(this)" title="Alle ausw&auml;hlen" style="margin-top:4px"></th></tr></thead><tbody>'+
-    sorted.map(([name,data])=>'<tr style="border-bottom:1px solid rgba(0,0,0,0.06)"><td style="padding:9px 12px;font-weight:500">'+name+'</td><td style="padding:9px 12px;color:#6b5d4a;font-size:12px">'+data.sales.map(s=>s.q+'× '+s.p).join(', ')+'</td><td style="padding:9px 12px;text-align:right;font-weight:600">'+fmt(data.total)+'</td><td style="padding:9px 10px;text-align:center"><input type="checkbox" class="cb" data-client="'+name+'" onchange="setVirement(this)"></td></tr>').join('')+
+    sorted.map(([name,data])=>'<tr style="border-bottom:1px solid rgba(0,0,0,0.06)"><td style="padding:9px 12px;font-weight:500">'+name+'</td><td style="padding:9px 12px;color:#6b5d4a;font-size:12px">'+data.sales.map(s=>s.q+'× '+s.p).join(', ')+'</td><td style="padding:9px 12px;text-align:right;font-weight:600">'+fmt(data.total)+'</td><td style="padding:9px 10px;text-align:center"><input type="checkbox" class="cb" data-client="'+name.replace(/"/g,'&quot;')+'" onchange="setVirement(this)"></td></tr>').join('')+
     '<tr style="background:#f9f7f4;border-top:2px solid rgba(0,0,0,0.1)"><td colspan="2" style="padding:9px 12px;font-weight:700">'+sorted.length+' Kunden</td><td style="padding:9px 12px;text-align:right;font-weight:700;color:#4a7c2f">'+fmt(grand)+'</td><td></td></tr>'+
     '</tbody></table></div>';
 }
@@ -711,7 +731,7 @@ function addOrder() {
   const x=parseFloat(document.getElementById('n-prix').value)||0;
   const newId=sales.length?Math.max(...sales.map(s=>s.i))+1:0;
   sales.push({i:newId,c,q,e:document.getElementById('n-emb').value.trim(),p,x,t:Math.round(x*q*100)/100,l:document.getElementById('n-liv').value === '' && document.getElementById('n-pay').value === 'gratuit' ? 'OK' : document.getElementById('n-liv').value,
-      z:(document.getElementById('n-pay').value === 'gratuit' ? '' : document.getElementById('n-pay').value),g:document.getElementById('n-gib').value,r:document.getElementById('n-rem').value.trim(),y:currentYear==='all'?2026:currentYear});
+      z:(document.getElementById('n-pay').value === 'gratuit' ? '' : document.getElementById('n-pay').value),g:document.getElementById('n-gib').value,r:document.getElementById('n-rem').value.trim(),y:currentYear==='all'?new Date().getFullYear():currentYear});
   closeModal('modal-new');
   renderAll();
 }
@@ -804,7 +824,7 @@ function saveDelivery() {
   }
   const rc=pr.reduce((a,p)=>a+p.rc,0);
   saveUndo('Neue Lieferung');
-  deliveries.push({id,dt:dt?new Date(dt).toLocaleDateString('de-LU'):'',kg,m:metz,rc:Math.round(rc*100)/100,bn:Math.round((rc-metz)*100)/100,y:currentYear==='all'?2026:currentYear,pr});
+  deliveries.push({id,dt:dt?new Date(dt).toLocaleDateString('de-LU'):'',kg,m:metz,rc:Math.round(rc*100)/100,bn:Math.round((rc-metz)*100)/100,y:currentYear==='all'?new Date().getFullYear():currentYear,pr});
   hasUnsavedChanges = true; updateSaveBtn();
   closeModal('modal-del');
   renderAll();
