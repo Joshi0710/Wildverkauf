@@ -579,7 +579,7 @@ function renderOverview() {
   const totalM = deliveriesForYear().reduce((a,d)=>a+d.m,0);
   const notPaid = ys.filter(s=>!isPaid(s)&&!isGratis(s));
   const notDel = ys.filter(s=>!isDelivered(s)&&!isGratis(s));
-  const todo = ys.filter(s=>!isGratis(s)&&(!isPaid(s)||!isDelivered(s)));
+  const todo = ys.filter(s=>!isDelivered(s)||(!isPaid(s)&&!isGratis(s)));
   const totalOff = notPaid.reduce((a,s)=>a+s.t,0);
 
   document.getElementById('st-ein').textContent = fmt(totalV);
