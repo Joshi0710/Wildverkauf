@@ -460,10 +460,10 @@ tbody tr:hover{background:#f9f7f4}
         <div class="tab" onclick="showTab('kunden',this)">Kunden <span id="open-badge" style="background:#c0392b;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:4px"></span></div>
         <div class="tab" onclick="showTab('lieferungen',this)">Lieferung</div>
         <div class="yr-grp" style="flex-shrink:0;margin-left:auto;align-self:center;margin-right:0">
-          <button class="ybtn" onclick="setYear(2024,this)">24</button>
-          <button class="ybtn" onclick="setYear(2025,this)">25</button>
-          <button class="ybtn active" onclick="setYear(2026,this)">26</button>
-          <button class="ybtn" onclick="setYear('all',this)">All</button>
+          <button class="ybtn" onclick="setYear(2024,this)">24-25</button>
+          <button class="ybtn" onclick="setYear(2025,this)">25-26</button>
+          <button class="ybtn active" onclick="setYear(2026,this)">26-27</button>
+          <button class="ybtn" onclick="setYear('all',this)">Alle</button>
         </div>
       </div>
       <div class="tabs" style="display:flex;border-top:1px solid rgba(255,255,255,0.1)">
@@ -672,11 +672,11 @@ tbody tr:hover{background:#f9f7f4}
     <small>L93 · Jagdsaison 2024–2027</small>
   </div>
   <div class="header-right">
-    <span id="total-count" style="font-size:12px;color:var(--sage)"></span>
+    <span id="wm-total-count" style="font-size:12px;color:var(--sage)"></span>
   </div>
 </header>
 
-<div class="summary" id="summary-bar"></div>
+<div class="summary" id="wm-summary-bar"></div>
 
 <div class="toolbar">
   <div class="filter-group">
@@ -726,23 +726,23 @@ tbody tr:hover{background:#f9f7f4}
 
 
 
-<div class="main" id="main"></div>
+<div class="main" id="wm-main"></div>
 
 <!-- Modal -->
-<div class="modal-overlay" id="modal">
+<div class="modal-overlay" id="wm-modal">
   <div class="modal">
     <button class="modal-close" onclick="wm_closeModal()">✕</button>
-    <div class="modal-title" id="modal-title">Marke bearbeiten</div>
-    <div class="modal-sub" id="modal-sub"></div>
+    <div class="modal-title" id="wm-modal-title">Marke bearbeiten</div>
+    <div class="modal-sub" id="wm-modal-sub"></div>
 
-    <div class="used-toggle" id="used-toggle" onclick="wm_toggleUsed()">
-      <div class="used-toggle-check" id="used-toggle-check"></div>
-      <span class="used-toggle-text" id="used-toggle-text">Als genutzt markieren</span>
+    <div class="used-toggle" id="wm-used-toggle" onclick="wm_toggleUsed()">
+      <div class="used-toggle-check" id="wm-used-toggle-check"></div>
+      <span class="used-toggle-text" id="wm-used-toggle-text">Als genutzt markieren</span>
     </div>
 
     <div class="field-group">
       <label class="field-label">Jäger / Zuweisung</label>
-      <select class="field-select" id="modal-hunter">
+      <select class="field-select" id="wm-modal-hunter">
         <option value="">— Nicht zugewiesen —</option>
         <option value="Serge">Serge</option>
         <option value="René">René</option>
@@ -754,7 +754,7 @@ tbody tr:hover{background:#f9f7f4}
 
     <div class="field-group">
       <label class="field-label">Kommentar (wann / wo genutzt)</label>
-      <textarea class="field-textarea" id="modal-comment" placeholder="z.B. Jim (24-25), B. 07.12.25, Cadavre 18.10.24 …"></textarea>
+      <textarea class="field-textarea" id="wm-modal-comment" placeholder="z.B. Jim (24-25), B. 07.12.25, Cadavre 18.10.24 …"></textarea>
     </div>
 
     <div class="field-group" id="hunttype-group">
@@ -1585,7 +1585,7 @@ async function wm_load() {
   wm_showLoading(true);
   try {
     const rows = await sbFetch('wildmarken?select=*&order=id');
-    data = rows.map(r => ({
+    wm_data = rows.map(r => ({
       id:       r.id,
       cat:      r.cat,
       used:     r.used,
@@ -1615,13 +1615,13 @@ async function wm_save(mark) {
 }
 
 function wm_showLoading(on) {
-  document.getElementById('main').innerHTML = on
+  document.getElementById('wm-main').innerHTML = on
     ? '<div class="no-results">⏳ Daten werden geladen…</div>'
     : '';
 }
 
 function wm_showError(msg) {
-  document.getElementById('main').innerHTML =
+  document.getElementById('wm-main').innerHTML =
     `<div class="no-results" style="color:#c83522">⚠️ ${msg}</div>`;
 }
 
@@ -1635,7 +1635,7 @@ function wm_renderSummary() {
   const total = wm_data.length;
   const used = wm_data.filter(m => m.used).length;
   const free = total - used;
-  document.getElementById('total-count').textContent = `${total} Marken total`;
+  document.getElementById('wm-total-count').textContent = `${total} Marken total`;
 
   const cats = ['RM','RA','SM','SF','CM','CF','CJ'];
   let html = `
@@ -1650,7 +1650,7 @@ function wm_renderSummary() {
     const u = wm_data.filter(m => m.cat === cat && m.used).length;
     html += `<div class="stat"><div class="stat-num" style="font-size:16px">${u}/${t}</div><div class="stat-label">${cat}</div></div>`;
   });
-  document.getElementById('summary-bar').innerHTML = html;
+  document.getElementById('wm-summary-bar').innerHTML = html;
 }
 
 function wm_getFiltered() {
@@ -1682,7 +1682,7 @@ function wm_renderMain() {
   const cats = [...new Set(filtered.map(m => m.cat))];
   const ORDER = ['RM','RA','SM','SF','CM','CF','CJ'];
   cats.sort((a,b) => ORDER.indexOf(a) - ORDER.indexOf(b));
-  const main = document.getElementById('main');
+  const main = document.getElementById('wm-main');
 
   if (filtered.length === 0) {
     main.innerHTML = '<div class="no-results">🔍 Keine Marken gefunden.</div>';
@@ -1777,20 +1777,20 @@ function wm_openModal(id) {
   wm_editingId = id;
   wm_modalUsed = m.used;
 
-  document.getElementById('modal-title').textContent = m.id;
-  document.getElementById('modal-sub').textContent = CATEGORY_NAMES[m.cat] || m.cat;
-  document.getElementById('modal-hunter').value = m.hunter || '';
-  document.getElementById('modal-comment').value = m.comment || '';
+  document.getElementById('wm-modal-title').textContent = m.id;
+  document.getElementById('wm-modal-sub').textContent = CATEGORY_NAMES[m.cat] || m.cat;
+  document.getElementById('wm-modal-hunter').value = m.hunter || '';
+  document.getElementById('wm-modal-comment').value = m.comment || '';
   // Pre-select jagdart: stored value wins, else detect from comment
   const ht = m.huntType || (m.used ? wm_detectHuntType(m.comment) : 'ansitz');
-  document.querySelector(`input[name="modal-hunttype"][value="${ht}"]`).checked = true;
+  document.querySelector(`#wm-modal input[name="modal-hunttype"][value="${ht}"]`).checked = true;
   wm_updateRadioStyles();
   wm_updateUsedToggle();
-  document.getElementById('modal').classList.add('open');
+  document.getElementById('wm-modal').classList.add('open');
 }
 
 function wm_closeModal() {
-  document.getElementById('modal').classList.remove('open');
+  const m = document.getElementById('wm-modal'); if(m) m.classList.remove('open');
   wm_editingId = null;
 }
 
@@ -1800,9 +1800,9 @@ function wm_toggleUsed() {
 }
 
 function wm_updateUsedToggle() {
-  const toggle = document.getElementById('used-toggle');
-  const check = document.getElementById('used-toggle-check');
-  const text = document.getElementById('used-toggle-text');
+  const toggle = document.getElementById('wm-used-toggle');
+  const check = document.getElementById('wm-used-toggle-check');
+  const text = document.getElementById('wm-used-toggle-text');
   if (wm_modalUsed) {
     toggle.classList.add('on');
     check.textContent = '✓';
@@ -1819,7 +1819,7 @@ function wm_updateRadioStyles() {
     el.classList.toggle('selected', el.querySelector('input[type=radio]').checked);
   });
 }
-document.querySelectorAll('input[name="modal-hunttype"]').forEach(r => {
+document.querySelectorAll('#wm-modal input[name="modal-hunttype"]').forEach(r => {
   r.addEventListener('change', wm_updateRadioStyles);
 });
 
@@ -1827,9 +1827,9 @@ async function wm_saveModal() {
   const m = wm_data.find(x => x.id === wm_editingId);
   if (!m) return;
   m.used = wm_modalUsed;
-  m.hunter = document.getElementById('modal-hunter').value;
-  m.comment = document.getElementById('modal-comment').value;
-  const checkedHT = document.querySelector('input[name="modal-hunttype"]:checked');
+  m.hunter = document.getElementById('wm-modal-hunter').value;
+  m.comment = document.getElementById('wm-modal-comment').value;
+  const checkedHT = document.querySelector('#wm-modal input[name="modal-hunttype"]:checked');
   m.huntType = checkedHT ? checkedHT.value : 'ansitz';
 
   // Optimistic UI: update sofort, dann Supabase
@@ -1843,7 +1843,7 @@ async function wm_saveModal() {
 }
 
 // Close on overlay click
-document.getElementById('modal').addEventListener('click', function(e) {
+document.getElementById('wm-modal') && document.getElementById('wm-modal').addEventListener('click', function(e) {
   if (e.target === this) wm_closeModal();
 });
 
