@@ -681,37 +681,31 @@ tbody tr:hover{background:#f9f7f4}
 <div class="toolbar">
   <div class="filter-group">
     <span class="filter-label">Kategorie</span>
-    <button class="btn-filter active" onclick="filterCat('all', this)">Alle</button>
-    <button class="btn-filter" onclick="filterCat('SM', this)">SM</button>
-    <button class="btn-filter" onclick="filterCat('SF', this)">SF</button>
-    <button class="btn-filter" onclick="filterCat('RM', this)">RM</button>
-    <button class="btn-filter" onclick="filterCat('RA', this)">RA</button>
-    <button class="btn-filter" onclick="filterCat('CF', this)">CF</button>
-    <button class="btn-filter" onclick="filterCat('CJ', this)">CJ</button>
-    <button class="btn-filter" onclick="filterCat('CM', this)">CM</button>
+    <button class="btn-filter active" onclick="wm_filterCat('all', this)">Alle</button>
+    <button class="btn-filter" onclick="wm_filterCat('SM', this)">SM</button>
+    <button class="btn-filter" onclick="wm_filterCat('SF', this)">SF</button>
+    <button class="btn-filter" onclick="wm_filterCat('RM', this)">RM</button>
+    <button class="btn-filter" onclick="wm_filterCat('RA', this)">RA</button>
+    <button class="btn-filter" onclick="wm_filterCat('CF', this)">CF</button>
+    <button class="btn-filter" onclick="wm_filterCat('CJ', this)">CJ</button>
+    <button class="btn-filter" onclick="wm_filterCat('CM', this)">CM</button>
   </div>
   <div class="filter-group">
     <span class="filter-label">Status</span>
-    <button class="btn-filter active" id="btn-status-all" onclick="filterStatus('all', this)">Alle</button>
-    <button class="btn-filter" id="btn-status-free" onclick="filterStatus('free', this)">🟢 Frei</button>
-    <button class="btn-filter" id="btn-status-used" onclick="filterStatus('used', this)">🔴 Genutzt</button>
+    <button class="btn-filter active" id="btn-status-all" onclick="wm_filterStatus('all', this)">Alle</button>
+    <button class="btn-filter" id="btn-status-free" onclick="wm_filterStatus('free', this)">🟢 Frei</button>
+    <button class="btn-filter" id="btn-status-used" onclick="wm_filterStatus('used', this)">🔴 Genutzt</button>
   </div>
-  <div class="filter-group">
-    <span class="filter-label">Saison</span>
-    <button class="btn-filter active" id="btn-season-all" onclick="filterSeason('all', this)">Alle</button>
-    <button class="btn-filter" id="btn-season-2425" onclick="filterSeason('24-25', this)">24–25</button>
-    <button class="btn-filter" id="btn-season-2526" onclick="filterSeason('25-26', this)">25–26</button>
-    <button class="btn-filter" id="btn-season-2627" onclick="filterSeason('26-27', this)">26–27</button>
-  </div>
+  
   <div class="filter-group">
     <span class="filter-label">Jagdart</span>
-    <button class="btn-filter active" id="btn-ht-all"    onclick="filterHuntType('all', this)">Alle</button>
-    <button class="btn-filter"        id="btn-ht-ansitz" onclick="filterHuntType('ansitz', this)">🎯 Ansitz</button>
-    <button class="btn-filter"        id="btn-ht-battue" onclick="filterHuntType('battue', this)">🚶 Battue</button>
-    <button class="btn-filter"        id="btn-ht-mort"   onclick="filterHuntType('mort', this)">💀 Trouvée mort</button>
+    <button class="btn-filter active" id="btn-ht-all"    onclick="wm_filterHuntType('all', this)">Alle</button>
+    <button class="btn-filter"        id="btn-ht-ansitz" onclick="wm_filterHuntType('ansitz', this)">🎯 Ansitz</button>
+    <button class="btn-filter"        id="btn-ht-battue" onclick="wm_filterHuntType('battue', this)">🚶 Battue</button>
+    <button class="btn-filter"        id="btn-ht-mort"   onclick="wm_filterHuntType('mort', this)">💀 Trouvée mort</button>
   </div>
   <div class="filter-group">
-    <select class="field-select" style="padding:5px 10px;width:auto;" onchange="filterHunter(this.value)">
+    <select class="field-select" style="padding:5px 10px;width:auto;" onchange="wm_filterHunter(this.value)">
       <option value="all">Alle</option>
       <option value="Serge">Serge</option>
       <option value="René">René</option>
@@ -721,7 +715,7 @@ tbody tr:hover{background:#f9f7f4}
       <option value="MT">MT</option>
     </select>
   </div>
-  <input class="search-box" type="text" placeholder="🔍 Marke suchen…" oninput="filterSearch(this.value)">
+  <input class="search-box" type="text" placeholder="🔍 Marke suchen…" oninput="wm_filterSearch(this.value)">
 </div>
 
 
@@ -924,6 +918,12 @@ function setYear(y, btn) {
   currentYear = y;
   document.querySelectorAll('.ybtn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  // Sync wildmarken season filter
+  const seasonMap = {2024:'24-25', 2025:'25-26', 2026:'26-27', 'all':'all'};
+  if (typeof wm_filters !== 'undefined') {
+    wm_filters.season = seasonMap[y] || 'all';
+    if (wm_data && wm_data.length) wm_renderMain();
+  }
   renderAll();
 }
 
