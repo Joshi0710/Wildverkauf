@@ -835,11 +835,11 @@ async function saveData() {
     const sd = sales.map(s => ({id:s.i,c:s.c,q:s.q,e:s.e,p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
     const dd = deliveries.map(d => ({id:d.id,dt:d.dt||'',kg:String(d.kg||''),m:d.m||0,rc:d.rc||0,bn:d.bn||0,y:d.y||2026,products:JSON.stringify(d.pr||[])}));
     // Delete all and reinsert to handle deletions
-    await sbFetch('wv_sales?id=gte.0', {method:'DELETE', headers:{}});
+    await sbFetch('wv_sales?id=gte.0', {method:'DELETE'});
     for (let i=0; i<sd.length; i+=100) {
       await sbFetch('wv_sales', {method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(sd.slice(i,i+100))});
     }
-    await sbFetch('wv_deliveries?id=neq.NEVER', {method:'DELETE', headers:{}});
+    await sbFetch('wv_deliveries?id=neq.NEVER', {method:'DELETE'});
     await sbFetch('wv_deliveries', {method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(dd)});
     hasUnsavedChanges = false; updateSaveBtn();
     btn.textContent = '✓';
@@ -1293,12 +1293,53 @@ function openNewDelivery() {
   document.getElementById('modal-del').classList.add('open');
 }
 
+function toggleDpMode(i) {
+  const mode = document.getElementById('dp-mode-'+i).value;
+  document.getElementById('dp-pakete-'+i).style.display = mode==='pakete' ? '' : 'none';
+  document.getElementById('dp-stueck-'+i).style.display = mode==='stueck' ? '' : 'none';
+}
+
 function addDelProd() {
   const i=dProdCount++;
   const el=document.createElement('div');
   el.style.cssText='background:#f9f7f4;border-radius:8px;padding:10px;margin-bottom:8px';
-  el.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="field"><label>Produkt</label><input list="dl-prods" id="dp-p-'+i+'" placeholder="Produkt..."></div><div class="field"><label>Emballage</label><input id="dp-e-'+i+'" placeholder="5"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="field"><label>Pakete</label><input type="number" id="dp-q-'+i+'"></div><div class="field"><label>Preis €/Pkg</label><input type="number" id="dp-x-'+i+'" step="0.5"></div></div>';
+  el.innerHTML=
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
+      '<div class="field"><label>Produkt</label><input list="dl-prods" id="dp-p-'+i+'" placeholder="Produkt..."></div>'+
+      '<div class="field"><label>Art</label>'+
+        '<select id="dp-mode-'+i+'" onchange="toggleDpMode('+i+')" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.2);font-family:inherit;font-size:14px">'+
+          '<option value="pakete">Pakete</option>'+
+          '<option value="stueck">Ganzes Stück</option>'+
+        '</select>'+
+      '</div>'+
+    '</div>'+
+    // Pakete mode
+    '<div id="dp-pakete-'+i+'">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        '<div class="field"><label>Emballage</label><input id="dp-e-'+i+'" placeholder="5"></div>'+
+        '<div class="field"><label>Pakete</label><input type="number" id="dp-q-'+i+'"></div>'+
+        '<div class="field"><label>Preis €/Pkg</label><input type="number" id="dp-x-'+i+'" step="0.5" oninput="calcDpTotal('+i+')"></div>'+
+      '</div>'+
+    '</div>'+
+    // Ganzes Stück mode
+    '<div id="dp-stueck-'+i+'" style="display:none">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        '<div class="field"><label>Gewicht (kg)</label><input type="number" id="dp-kg-'+i+'" step="0.1" oninput="calcDpTotal('+i+')"></div>'+
+        '<div class="field"><label>Preis €/kg</label><input type="number" id="dp-kgp-'+i+'" step="0.5" oninput="calcDpTotal('+i+')"></div>'+
+        '<div class="field"><label>Total €</label><input type="number" id="dp-tot-'+i+'" step="0.01" style="background:#e8f2e0;font-weight:600" readonly></div>'+
+      '</div>'+
+    '</div>';
   document.getElementById('d-prods').appendChild(el);
+}
+
+function calcDpTotal(i) {
+  const mode = document.getElementById('dp-mode-'+i)?.value;
+  if (mode === 'stueck') {
+    const kg = parseFloat(document.getElementById('dp-kg-'+i)?.value)||0;
+    const kgp = parseFloat(document.getElementById('dp-kgp-'+i)?.value)||0;
+    const tot = Math.round(kg*kgp*100)/100;
+    document.getElementById('dp-tot-'+i).value = tot||'';
+  }
 }
 
 function saveDelivery() {
@@ -1308,11 +1349,20 @@ function saveDelivery() {
   const dt=document.getElementById('d-date').value;
   const pr=[];
   for(let i=0;i<dProdCount;i++){
-    const q=parseInt(document.getElementById('dp-q-'+i)?.value)||0;
     const p=document.getElementById('dp-p-'+i)?.value||'';
-    const x=parseFloat(document.getElementById('dp-x-'+i)?.value)||0;
-    const e=document.getElementById('dp-e-'+i)?.value||'';
-    if(q&&p) pr.push({n:p,pc:e,q,px:x,rc:Math.round(x*q*100)/100,v:0,rs:0,st:q});
+    const mode=document.getElementById('dp-mode-'+i)?.value||'pakete';
+    if (!p) continue;
+    if (mode === 'stueck') {
+      const kg=parseFloat(document.getElementById('dp-kg-'+i)?.value)||0;
+      const kgp=parseFloat(document.getElementById('dp-kgp-'+i)?.value)||0;
+      const tot=Math.round(kg*kgp*100)/100;
+      if(kg>0) pr.push({n:p,pc:kg+'kg',q:1,px:tot,rc:tot,v:0,rs:0,st:1});
+    } else {
+      const q=parseInt(document.getElementById('dp-q-'+i)?.value)||0;
+      const x=parseFloat(document.getElementById('dp-x-'+i)?.value)||0;
+      const e=document.getElementById('dp-e-'+i)?.value||'';
+      if(q>0) pr.push({n:p,pc:e,q,px:x,rc:Math.round(x*q*100)/100,v:0,rs:0,st:q});
+    }
   }
   const rc=pr.reduce((a,p)=>a+p.rc,0);
   saveUndo('Neue Lieferung');
