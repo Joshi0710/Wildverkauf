@@ -626,25 +626,18 @@ function updateStock(produit, qteChange) {
 }
 
 function syncStockFromSales() {
-  // Full recalculation: distribute delivered and reserved across deliveries
-  const deliveredLeft = {}, reservedLeft = {};
-  sales.filter(s => !isGratis(s)).forEach(s => {
-    if (isDelivered(s)) deliveredLeft[s.p] = (deliveredLeft[s.p]||0) + s.q;
-    else reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
+  // Only update rs (reserved) from undelivered sales.
+  // st and v come from Supabase and are only changed by explicit stock operations.
+  // This avoids incorrectly zeroing stock on old deliveries with different product names.
+  const reservedLeft = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
   });
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
-      // Consume delivered quantity from this delivery slot
-      const consume = Math.min(p.q, deliveredLeft[p.n]||0);
-      p.v = consume;
-      deliveredLeft[p.n] = Math.max(0, (deliveredLeft[p.n]||0) - consume);
-      // Assign reservations from remaining capacity
-      const remaining = p.q - p.v;
-      const reserve = Math.min(remaining, reservedLeft[p.n]||0);
+      const reserve = Math.min(p.st + (p.rs||0), reservedLeft[p.n]||0);
       p.rs = reserve;
       reservedLeft[p.n] = Math.max(0, (reservedLeft[p.n]||0) - reserve);
-      // Stock = capacity - delivered - reserved
-      p.st = Math.max(0, p.q - p.v - p.rs);
     });
   });
 }
