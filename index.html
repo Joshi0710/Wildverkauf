@@ -999,6 +999,20 @@ function syncStockFromSales() {
   });
 }
 
+function toggleNewMode() {
+  const mode = document.getElementById('n-mode').value;
+  document.getElementById('n-pakete-row').style.display = mode==='pakete' ? '' : 'none';
+  document.getElementById('n-stueck-row').style.display = mode==='stueck' ? '' : 'none';
+}
+
+function calcNewTotal() {
+  const kg = parseFloat(document.getElementById('n-kg')?.value)||0;
+  const kgp = parseFloat(document.getElementById('n-kgp')?.value)||0;
+  const tot = Math.round(kg*kgp*100)/100;
+  const el = document.getElementById('n-tot');
+  if (el) el.value = tot||'';
+}
+
 function handlePayChange(prefix) {
   const pay = document.getElementById(prefix+'-pay').value;
   if (pay === 'gratuit') {
@@ -1208,7 +1222,8 @@ document.querySelectorAll('.modal-bg').forEach(b=>b.addEventListener('click',e=>
 function openNewOrder() {
   if (!editMode) { alert('Bitte zuerst auf "✏️ Ändern" klicken'); return; }
   updateDataLists();
-  ['n-client','n-prod','n-emb','n-rem'].forEach(id=>document.getElementById(id).value='');
+  ['n-client','n-prod','n-emb','n-rem'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const nm=document.getElementById('n-mode');if(nm){nm.value='pakete';toggleNewMode();}
   document.getElementById('n-qte').value=1;
   document.getElementById('n-prix').value=10;
   document.getElementById('modal-new').classList.add('open');
