@@ -1408,8 +1408,9 @@ function wm_getFiltered() {
     if (wm_filters.status === 'free' && m.used) return false;
     if (wm_filters.hunter !== 'all' && m.hunter !== wm_filters.hunter) return false;
     if (wm_filters.season !== 'all') {
-      // Free marks without a season are always shown
-      if (!m.used && !m.comment) return true;
+      // Free marks always shown regardless of season filter
+      if (!m.used) return true;
+      // Used marks filtered by season
       const s = wm_detectSeason(m.comment);
       if (s !== wm_filters.season) return false;
     }
@@ -1474,7 +1475,7 @@ function wm_renderMain() {
             <span class="mark-id">${esc(m.id)}</span>
             <div class="mark-check ${m.used ? 'checked' : 'unchecked'}">${m.used ? '✓' : ''}</div>
           </div>
-          <div class="mark-hunter">${esc(hunterText)}</div>
+          <div class="mark-hunter">${hunterText}</div>
           ${m.used ? `<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">${huntBadge}${seasonBadge}</div>` : ''}
           ${m.comment ? `<div class="mark-comment">📝 ${esc(m.comment)}</div>` : ''}
         </div>
