@@ -1374,7 +1374,7 @@ function wm_renderMain() {
         huntBadge = `<span style="font-size:9px;font-weight:600;background:${bg};color:${col};padding:1px 6px;border-radius:8px;flex-shrink:0">${icon} ${label}</span>`;
       }
       html += `
-        <div class="mark-card ${m.used ? 'is-used' : ''}" onclick="wm_openModal('${m.id}')" style="${m.used && m.hunter && HUNTER_COLORS[m.hunter] ? 'background:' + HUNTER_COLORS[m.hunter] + '33;border-color:' + HUNTER_COLORS[m.hunter] + ';border-width:2px;' : ''}">
+        <div class="mark-card ${m.used ? 'is-used' : ''}" onclick="wm_openModal('${m.id}')" style="${m.used ? 'background:#fde0de;border-color:#e05c4a;border-width:2px;' : (m.hunter && HUNTER_COLORS[m.hunter] ? 'background:' + HUNTER_COLORS[m.hunter] + '28;border-color:' + HUNTER_COLORS[m.hunter] + '88;border-width:2px;' : '')}">
           <div class="mark-top">
             <span class="mark-id">${m.id}</span>
             <div class="mark-check ${m.used ? 'checked' : 'unchecked'}">${m.used ? '✓' : ''}</div>
