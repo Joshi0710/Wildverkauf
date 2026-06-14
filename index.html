@@ -1408,6 +1408,8 @@ function wm_getFiltered() {
     if (wm_filters.status === 'free' && m.used) return false;
     if (wm_filters.hunter !== 'all' && m.hunter !== wm_filters.hunter) return false;
     if (wm_filters.season !== 'all') {
+      // Free marks without a season are always shown
+      if (!m.used && !m.comment) return true;
       const s = wm_detectSeason(m.comment);
       if (s !== wm_filters.season) return false;
     }
