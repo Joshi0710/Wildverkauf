@@ -555,21 +555,15 @@ function updateStock(produit, qteChange) {
 }
 
 function syncStockFromSales() {
-  // Recalculate rs (reserved = undelivered) and update st accordingly
+  // Only update rs (reserved) from undelivered sales
+  // st is managed directly via updateStock when orders are added/changed
   const undelivered = {};
-  const delivered = {};
-  sales.filter(s => !isGratis(s)).forEach(s => {
-    if (!isDelivered(s)) {
-      undelivered[s.p] = (undelivered[s.p] || 0) + s.q;
-    } else {
-      delivered[s.p] = (delivered[s.p] || 0) + s.q;
-    }
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    undelivered[s.p] = (undelivered[s.p] || 0) + s.q;
   });
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
       p.rs = undelivered[p.n] || 0;
-      const totalSold = delivered[p.n] || 0;
-      p.st = Math.max(0, p.q - totalSold - p.rs);
     });
   });
 }
