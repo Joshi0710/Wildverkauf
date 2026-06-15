@@ -529,11 +529,13 @@ function setYear(y, btn) {
   currentYear = y;
   document.querySelectorAll('.ybtn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  // Sync wildmarken season filter
+  // Sync wildmarken season filter with year buttons
   const seasonMap = {2024:'24-25', 2025:'25-26', 2026:'26-27', 'all':'all'};
   if (typeof wm_filters !== 'undefined') {
     wm_filters.season = seasonMap[y] || 'all';
-    if (wm_data && wm_data.length) wm_renderMain();
+    // Re-render wildmarken if that tab is active
+    const wmPage = document.getElementById('page-wildmarken');
+    if (wmPage && wmPage.classList.contains('active') && wm_data.length) wm_renderMain();
   }
   renderAll();
 }
@@ -548,11 +550,11 @@ function showTab(id, tab) {
   // Year filter visibility + wildmarken lazy load
   const yrGrp = document.querySelector('.yr-grp');
   if (id === 'wildmarken') {
-    if (yrGrp) yrGrp.style.visibility = 'hidden';
+    if (yrGrp) yrGrp.style.visibility = 'visible'; // Show year filter for wildmarken too
     if (typeof wm_load === 'function' && wm_data.length === 0) {
-      wm_load(); // First open: load from Supabase
+      wm_load();
     } else if (wm_data.length > 0) {
-      wm_renderMain(); // Already loaded: re-render
+      wm_renderMain();
     }
   } else {
     if (yrGrp) yrGrp.style.visibility = 'visible';
@@ -1262,6 +1264,7 @@ const CATEGORY_NAMES = {
 const HUNTER_COLORS = {
   'Serge':'#3b7fc4','René':'#c47a3b','Jim':'#6b3bc4',
   'Patrick':'#c43b6b','Carlo':'#3bc47a','MT':'#8b8b3b',
+  'Reserve Bud':'#e6a817',
 };
 
 // ── State ────────────────────────────────────────────────────────────────────
