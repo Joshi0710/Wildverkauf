@@ -1,10 +1,8 @@
 name: Keep Supabase Alive
-
 on:
   schedule:
-    - cron: "0 12 * * *"   # Jeden Tag um 12:00 UTC
-  workflow_dispatch:        # Manuell ausführbar
-
+    - cron: "0 12 * * *"  # Jeden Tag um 12:00 UTC
+  workflow_dispatch:         # Manuell auslösbar
 jobs:
   ping:
     runs-on: ubuntu-latest
@@ -12,15 +10,14 @@ jobs:
       - name: Ping Wildverkauf
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: DEIN_API_KEY" \
-            -H "Authorization: Bearer DEIN_API_KEY" \
-            "https://smanaekfwmidqmulypxm.supabase.co/rest/v1/vw_sales?select=id&limit=1")
+               -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtYW5hZWtmd21pZHFtdWx5cHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNDY0ODMsImV4cCI6MjA5NTcyMjQ4M30.3GMje7NEv-J-7qGirLgPrwfU8SmqKfzeqSDPMEvCBsQ" \
+               -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtYW5hZWtmd21pZHFtdWx5cHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNDY0ODMsImV4cCI6MjA5NTcyMjQ4M30.3GMje7NEv-J-7qGirLgPrwfU8SmqKfzeqSDPMEvCBsQ" \
+               "https://smanaekfwmidqmulypxm.supabase.co/rest/v1/wv_sales?select=id&limit=1")
           echo "Wildverkauf Status: $STATUS"
-
       - name: Ping Virements mensuels
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: DEIN_API_KEY" \
-            -H "Authorization: Bearer DEIN_API_KEY" \
-            "https://hthtvosmugqcftrkpyvs.supabase.co/rest/v1/?limit=1")
+               -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0aHR2b3N3dWdrY2Z0cmtwanZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMTQ3NzYsImV4cCI6MjA5NTc5MDc3Nn0.XLxTwgGWLNZYAlpuTcirdxDjcPaeYtuhDtMx1oh2Muc" \
+               -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0aHR2b3N3dWdrY2Z0cmtwanZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMTQ3NzYsImV4cCI6MjA5NTc5MDc3Nn0.XLxTwgGWLNZYAlpuTcirdxDjcPaeYtuhDtMx1oh2Muc" \
+               "https://hthtvoswugkcftrkpjvs.supabase.co/rest/v1/?limit=1")
           echo "Virements mensuels Status: $STATUS"
