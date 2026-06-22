@@ -19,5 +19,5 @@ jobs:
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
                -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0aHR2b3N3dWdrY2Z0cmtwanZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMTQ3NzYsImV4cCI6MjA5NTc5MDc3Nn0.XLxTwgGWLNZYAlpuTcirdxDjcPaeYtuhDtMx1oh2Muc" \
                -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0aHR2b3N3dWdrY2Z0cmtwanZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMTQ3NzYsImV4cCI6MjA5NTc5MDc3Nn0.XLxTwgGWLNZYAlpuTcirdxDjcPaeYtuhDtMx1oh2Muc" \
-               "https://hthtvoswugkcftrkpjvs.supabase.co/rest/v1/?limit=1")
+               "https://hthtvoswugkcftrkpjvs.supabase.co/rest/v1/monatsbuchungen?select=*&limit=1")
           echo "Virements mensuels Status: $STATUS"
