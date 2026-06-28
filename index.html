@@ -750,14 +750,15 @@ function renderOverview() {
 
   // Stock
   const stockItems = [];
-  deliveries.forEach(d => { d.pr && d.pr.forEach(p => { if (p.st>0) stockItems.push({...p, lid:d.id, ldt:d.dt}); }); });
+  deliveries.forEach(d => { d.pr && d.pr.forEach(p => { if ((p.st||0) - (p.rs||0) > 0) stockItems.push({...p, lid:d.id, ldt:d.dt}); }); });
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
     sl.innerHTML = '<div class="card"><div class="empty">Kein Lagerbestand</div></div>';
   } else {
     sl.innerHTML = '<div class="card">'+stockItems.map(p => {
       const pct = p.q>0?Math.round((p.v/p.q)*100):100;
-      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div class="row-sub">'+p.lid+(p.ldt?' · '+p.ldt:'')+(p.px?' · '+fmt(p.px)+'/Pkg':'')+'</div><div class="sbar" style="width:80px;margin-top:5px"><div class="sfill" style="width:'+pct+'%;background:#4a7c2f"></div></div></div><div class="row-r"><div class="row-amt r" style="font-size:18px">'+p.st+'</div><div style="font-size:11px;color:#6b5d4a">auf Lager</div>'+(p.rs>0?'<div style="font-size:11px;color:#b8690a">'+p.rs+' reserviert</div>':'')+'</div></div>';
+      const avail = Math.max(0, (p.st||0) - (p.rs||0));
+      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div class="row-sub">'+p.lid+(p.ldt?' · '+p.ldt:'')+(p.px?' · '+fmt(p.px)+'/Pkg':'')+'</div><div class="sbar" style="width:80px;margin-top:5px"><div class="sfill" style="width:'+pct+'%;background:#4a7c2f"></div></div></div><div class="row-r"><div class="row-amt r" style="font-size:18px">'+avail+'</div><div style="font-size:11px;color:#6b5d4a">verfügbar</div></div></div>';
     }).join('')+'</div>';
   }
 }
