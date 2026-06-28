@@ -634,18 +634,45 @@ function updateStock(produit, qteChange) {
 }
 
 function syncStockFromSales() {
-  // Only update rs (reserved) from undelivered sales.
-  // st and v come from Supabase and are only changed by explicit stock operations.
-  // This avoids incorrectly zeroing stock on old deliveries with different product names.
-  const reservedLeft = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
+  // Stock model:
+  // - p.q = total packages from this delivery (fixed, never changes)
+  // - p.v = how many of this delivery's packages have been sold/given to a delivered, non-gratis sale
+  // - p.st = how many of this delivery's packages are still in stock = p.q - p.v
+  // - p.rs = reserved (ordered but not yet delivered) stock, shown for info, capped at remaining st
+  //
+  // We recompute v/st by distributing total delivered (sold) quantity per product across that
+  // product's delivery pools, oldest delivery first (consistent with how updateStock worked).
+  const deliveredQty = {};
+  sales.filter(s => isDelivered(s) && !isGratis(s)).forEach(s => {
+    deliveredQty[s.p] = (deliveredQty[s.p]||0) + s.q;
   });
+  const reservedQty = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    reservedQty[s.p] = (reservedQty[s.p]||0) + s.q;
+  });
+
+  // Group delivery product-entries by product name, in delivery order (oldest first, as stored)
+  const poolsByName = {};
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
-      const reserve = Math.min(p.st + (p.rs||0), reservedLeft[p.n]||0);
+      if (!poolsByName[p.n]) poolsByName[p.n] = [];
+      poolsByName[p.n].push(p);
+    });
+  });
+
+  Object.keys(poolsByName).forEach(name => {
+    let toDistribute = deliveredQty[name] || 0;
+    poolsByName[name].forEach(p => {
+      const sold = Math.min(p.q||0, toDistribute);
+      p.v = sold;
+      p.st = Math.max(0, (p.q||0) - sold);
+      toDistribute -= sold;
+    });
+    let toReserve = reservedQty[name] || 0;
+    poolsByName[name].forEach(p => {
+      const reserve = Math.min(p.st||0, toReserve);
       p.rs = reserve;
-      reservedLeft[p.n] = Math.max(0, (reservedLeft[p.n]||0) - reserve);
+      toReserve -= reserve;
     });
   });
 }
