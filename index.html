@@ -634,45 +634,20 @@ function updateStock(produit, qteChange) {
 }
 
 function syncStockFromSales() {
-  // Stock model:
-  // - p.q = total packages from this delivery (fixed, never changes)
-  // - p.v = how many of this delivery's packages have been sold/given to a delivered, non-gratis sale
-  // - p.st = how many of this delivery's packages are still in stock = p.q - p.v
-  // - p.rs = reserved (ordered but not yet delivered) stock, shown for info, capped at remaining st
-  //
-  // We recompute v/st by distributing total delivered (sold) quantity per product across that
-  // product's delivery pools, oldest delivery first (consistent with how updateStock worked).
-  const deliveredQty = {};
-  sales.filter(s => isDelivered(s) && !isGratis(s)).forEach(s => {
-    deliveredQty[s.p] = (deliveredQty[s.p]||0) + s.q;
-  });
-  const reservedQty = {};
+  // Only update rs (reserved) from undelivered sales.
+  // st and v are only changed by explicit stock operations (updateStock), triggered when a
+  // sale's delivered-status actually changes for a stock-tracked product.
+  // This avoids incorrectly recalculating stock for non-pooled "unique piece" products
+  // (Reck, Gigue, Ragout, etc. where each delivery entry is its own unique item).
+  const reservedLeft = {};
   sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    reservedQty[s.p] = (reservedQty[s.p]||0) + s.q;
+    reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
   });
-
-  // Group delivery product-entries by product name, in delivery order (oldest first, as stored)
-  const poolsByName = {};
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
-      if (!poolsByName[p.n]) poolsByName[p.n] = [];
-      poolsByName[p.n].push(p);
-    });
-  });
-
-  Object.keys(poolsByName).forEach(name => {
-    let toDistribute = deliveredQty[name] || 0;
-    poolsByName[name].forEach(p => {
-      const sold = Math.min(p.q||0, toDistribute);
-      p.v = sold;
-      p.st = Math.max(0, (p.q||0) - sold);
-      toDistribute -= sold;
-    });
-    let toReserve = reservedQty[name] || 0;
-    poolsByName[name].forEach(p => {
-      const reserve = Math.min(p.st||0, toReserve);
+      const reserve = Math.min(p.st + (p.rs||0), reservedLeft[p.n]||0);
       p.rs = reserve;
-      toReserve -= reserve;
+      reservedLeft[p.n] = Math.max(0, (reservedLeft[p.n]||0) - reserve);
     });
   });
 }
@@ -957,18 +932,28 @@ function addOrder() {
   };
   sales.push(newSale);
   // Update stock if delivered
-  if (isDelivered(newSale) && !isGratis(newSale)) syncStockFromSales();
+  if (isDelivered(newSale) && !isGratis(newSale)) updateStock(newSale.p, newSale.q);
+  syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-new');
   renderAll();
 }
 
+let editingOldDelivered = false;
+let editingOldGratis = false;
+let editingOldProduct = '';
+let editingOldQty = 0;
+
 function openEdit(id) {
   if (!editMode) return;
   const s=sales.find(x=>x.i===id);
   if(!s)return;
   editingId=id;
+  editingOldDelivered = isDelivered(s);
+  editingOldGratis = isGratis(s);
+  editingOldProduct = s.p;
+  editingOldQty = s.q;
   document.getElementById('e-client').value=s.c||'';
   document.getElementById('e-prod').value=s.p||'';
   document.getElementById('e-qte').value=s.q||1;
@@ -997,7 +982,14 @@ function saveEdit() {
   s.z = (payVal === 'gratuit') ? '' : payVal;
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
-  // Recalculate all stock from scratch - single source of truth
+
+  // Adjust stock only for the actual transition (old -> new), per stock-tracked product (Wurst/Pakage-Art).
+  // Undo the old effect (if it was previously delivered & not gratis), then apply the new effect.
+  const wasStockEffect = editingOldDelivered && !editingOldGratis;
+  const isStockEffect = isDelivered(s) && !isGratis(s);
+  if (wasStockEffect) updateStock(editingOldProduct, -editingOldQty); // give back old qty to stock
+  if (isStockEffect) updateStock(s.p, s.q); // take new qty from stock
+
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -1008,7 +1000,9 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
-  sales = sales.filter(s => s.i !== editingId);
+  const s = sales.find(x => x.i === editingId);
+  if (s && isDelivered(s) && !isGratis(s)) updateStock(s.p, -s.q); // give back stock
+  sales = sales.filter(x => x.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
   closeModal('modal-edit');
