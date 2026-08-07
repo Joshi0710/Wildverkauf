@@ -794,17 +794,19 @@ function renderOverview() {
   });
   // Add virtual backorder entries for products ordered but with NO delivery pool yet
   // Include ALL delivery years, not just current year, to check pool existence
-  // Only count a product as "in pool" if it has actual quantity (q>0)
-  const productsInPools = new Set();
-  deliveries.forEach(d => { (d.pr||[]).forEach(p => { if (p.n && (p.q||0) > 0) productsInPools.add(p.n); }); });
-  const orderedNotInPool = {};
+  // Virtual backorder: products ordered but with no real pool (q=0 or no pool at all)
+  // Collect all undelivered ordered qty per product for current year
+  const undeliveredByProduct = {};
   salesForYear().filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    if (!productsInPools.has(s.p)) {
-      orderedNotInPool[s.p] = (orderedNotInPool[s.p]||0) + s.q;
-    }
+    undeliveredByProduct[s.p] = (undeliveredByProduct[s.p]||0) + s.q;
   });
-  Object.entries(orderedNotInPool).forEach(([name, qty]) => {
-    stockItems.push({n:name, pc:'', q:0, px:0, v:0, rs:qty, st:-qty, avail:-qty, lid:'—', ldt:''});
+  // For each product with undelivered orders, check if it already appears in stockItems
+  // If not (no pool or pool fully exhausted with no avail), add virtual entry
+  const alreadyInStock = new Set(stockItems.map(s => s.n));
+  Object.entries(undeliveredByProduct).forEach(([name, qty]) => {
+    if (!alreadyInStock.has(name)) {
+      stockItems.push({n:name, pc:'', q:0, px:0, v:0, rs:qty, st:-qty, avail:-qty, lid:'—', ldt:''});
+    }
   });
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
