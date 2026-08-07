@@ -787,7 +787,7 @@ function renderOverview() {
     (d.pr||[]).forEach(p => {
       const avail = (p.st||0) - (p.rs||0);
       const isLatest = latestPoolByName[p.n] && latestPoolByName[p.n].lid === d.id;
-      if (avail > 0 || (isLatest && avail < 0)) {
+      if (avail !== 0) {
         stockItems.push({...p, avail, lid:d.id, ldt:d.dt});
       }
     });
