@@ -760,7 +760,25 @@ function renderOverview() {
 
   // Stock
   const stockItems = [];
-  deliveries.forEach(d => { d.pr && d.pr.forEach(p => { const avail = (p.st||0) - (p.rs||0); if (avail !== 0 || (p.st||0) > 0) stockItems.push({...p, avail, lid:d.id, ldt:d.dt}); }); });
+  // Build stockItems: show pools with positive stock OR negative stock (backorder)
+  // But only show negative pools if they are the most recent pool for that product name
+  // (old depleted pools should not appear as negative)
+  const latestPoolByName = {};
+  deliveries.slice().reverse().forEach(d => {
+    (d.pr||[]).forEach(p => {
+      if (!latestPoolByName[p.n]) latestPoolByName[p.n] = {...p, lid:d.id, ldt:d.dt};
+    });
+  });
+  deliveries.forEach(d => {
+    (d.pr||[]).forEach(p => {
+      const avail = (p.st||0) - (p.rs||0);
+      const isLatest = latestPoolByName[p.n] && latestPoolByName[p.n].lid === d.id;
+      // Show if: has positive available stock, OR is the latest pool and stock is negative (backorder)
+      if (avail > 0 || (isLatest && p.st < 0)) {
+        stockItems.push({...p, avail, lid:d.id, ldt:d.dt});
+      }
+    });
+  });
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
     sl.innerHTML = '<div class="card"><div class="empty">Kein Lagerbestand</div></div>';
@@ -809,7 +827,7 @@ function renderDeliveries() {
   el.innerHTML = list.map(d => {
     const pos = d.bn>=0;
     const stk = (d.pr||[]).reduce((a,p)=>a+p.st,0);
-    const editBtn = editMode ? '<button onclick="event.stopPropagation();openEditDelivery(\'' + d.id + '\')" style="background:#f0e8d8;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#4a3728;flex-shrink:0">✏️ Bearbeiten</button>' : '';
+    const editBtn = editMode ? '<button onclick="event.stopPropagation();openEditDelivery(this.dataset.id)" data-id="'+d.id+'" style="background:#f0e8d8;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#4a3728;flex-shrink:0">✏️ Bearbeiten</button>' : '';
     return '<div class="del-card"><div class="del-hdr" onclick="toggleDel(this)"><div><div style="font-weight:600;font-size:13px">'+d.id+(d.dt?' — '+d.dt:'')+'</div><div style="font-size:12px;color:#6b5d4a;margin-top:2px">'+(d.kg?d.kg+' kg · ':'')+'Metzger: '+fmt(d.m)+(stk>0?' · <span style="color:#c0392b">'+stk+' Lager</span>':'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><div style="text-align:right"><div style="font-weight:700;font-size:15px;color:'+(pos?'#4a7c2f':'#c0392b')+'">'+(pos?'+':'')+fmt(d.bn)+'</div><div style="font-size:11px;color:#6b5d4a">Verk: '+fmt(d.rc)+'</div></div>'+editBtn+'</div></div><div class="del-body">'+(d.pr||[]).map(p=>{
       const pct=p.q>0?Math.round((p.v/p.q)*100):100;
       return '<div class="prow"><div><div style="font-weight:500">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div style="font-size:11px;color:#6b5d4a">'+p.q+' Pkg · '+fmt(p.px)+'/Pkg</div></div><div style="text-align:right"><div style="font-size:12px;font-weight:600">'+p.v+'/'+p.q+'</div><div class="sbar"><div class="sfill" style="width:'+pct+'%;background:'+(p.st>0?'#c0392b':'#4a7c2f')+'"></div></div>'+(p.st>0?'<div style="font-size:11px;color:#c0392b">'+p.st+' Lager</div>':'')+'</div></div>';
