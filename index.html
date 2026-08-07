@@ -765,8 +765,20 @@ function renderOverview() {
   // Build stockItems: show pools with positive stock OR negative stock (backorder)
   // But only show negative pools if they are the most recent pool for that product name
   // (old depleted pools should not appear as negative)
+  // Sort deliveries by year desc, then by date desc to find the truly latest pool per product
+  const sortedDeliveries = deliveries.slice().sort((a, b) => {
+    if ((b.y||0) !== (a.y||0)) return (b.y||0) - (a.y||0);
+    // Parse DD/MM/YY date
+    const parseD = dt => {
+      if (!dt) return 0;
+      const p = dt.split('/');
+      if (p.length === 3) { const y = parseInt(p[2]) + (parseInt(p[2]) < 100 ? 2000 : 0); return new Date(y, parseInt(p[1])-1, parseInt(p[0])).getTime(); }
+      return 0;
+    };
+    return parseD(b.dt) - parseD(a.dt);
+  });
   const latestPoolByName = {};
-  deliveries.slice().reverse().forEach(d => {
+  sortedDeliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
       if (!latestPoolByName[p.n]) latestPoolByName[p.n] = {...p, lid:d.id, ldt:d.dt};
     });
