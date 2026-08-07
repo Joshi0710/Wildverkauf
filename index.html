@@ -760,64 +760,47 @@ function renderOverview() {
       '</tbody></table></div>';
   }
 
-  // Stock
-  const stockItems = [];
-  // Build stockItems: show pools with positive stock OR negative stock (backorder)
-  // But only show negative pools if they are the most recent pool for that product name
-  // (old depleted pools should not appear as negative)
-  // Sort deliveries by year desc, then by date desc to find the truly latest pool per product
-  const sortedDeliveries = deliveries.slice().sort((a, b) => {
-    if ((b.y||0) !== (a.y||0)) return (b.y||0) - (a.y||0);
-    // Parse DD/MM/YY date
-    const parseD = dt => {
-      if (!dt) return 0;
-      const p = dt.split('/');
-      if (p.length === 3) { const y = parseInt(p[2]) + (parseInt(p[2]) < 100 ? 2000 : 0); return new Date(y, parseInt(p[1])-1, parseInt(p[0])).getTime(); }
-      return 0;
-    };
-    return parseD(b.dt) - parseD(a.dt);
-  });
-  const latestPoolByName = {};
-  sortedDeliveries.forEach(d => {
-    (d.pr||[]).forEach(p => {
-      if (!latestPoolByName[p.n]) latestPoolByName[p.n] = {...p, lid:d.id, ldt:d.dt};
-    });
-  });
+  // Stock: aggregate across ALL deliveries per product name
+  const stockByName = {};
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
-      const avail = (p.st||0) - (p.rs||0);
-      const isLatest = latestPoolByName[p.n] && latestPoolByName[p.n].lid === d.id;
-      if (avail !== 0) {
-        stockItems.push({...p, avail, lid:d.id, ldt:d.dt});
-      }
+      if (!p.n) return;
+      if (!stockByName[p.n]) stockByName[p.n] = {st:0, rs:0, px:p.px||0};
+      stockByName[p.n].st += (p.st||0);
+      stockByName[p.n].rs += (p.rs||0);
+      if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // Add virtual backorder entries for products ordered but with NO delivery pool yet
-  // Include ALL delivery years, not just current year, to check pool existence
-  // Virtual backorder: products ordered but with no real pool (q=0 or no pool at all)
-  // Collect all undelivered ordered qty per product for current year
+  // Undelivered orders per product (current year filter)
   const undeliveredByProduct = {};
   salesForYear().filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
     undeliveredByProduct[s.p] = (undeliveredByProduct[s.p]||0) + s.q;
   });
-  // For each product with undelivered orders, check if it already appears in stockItems
-  // If not (no pool or pool fully exhausted with no avail), add virtual entry
+  // Build display items: one row per product
+  const stockItems = [];
+  // Products with real pools
+  Object.entries(stockByName).forEach(([name, agg]) => {
+    const avail = agg.st - agg.rs;
+    if (avail !== 0) stockItems.push({n:name, avail, px:agg.px});
+  });
+  // Products with undelivered orders but no pool (or pool avail=0)
   const alreadyInStock = new Set(stockItems.map(s => s.n));
   Object.entries(undeliveredByProduct).forEach(([name, qty]) => {
     if (!alreadyInStock.has(name)) {
-      stockItems.push({n:name, pc:'', q:0, px:0, v:0, rs:qty, st:-qty, avail:-qty, lid:'—', ldt:''});
+      stockItems.push({n:name, avail:-qty, px:0});
     }
   });
+  // Sort: positive first, then negative
+  stockItems.sort((a,b) => b.avail - a.avail);
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
     sl.innerHTML = '<div class="card"><div class="empty">Kein Lagerbestand</div></div>';
   } else {
     sl.innerHTML = '<div class="card">'+stockItems.map(p => {
-      const pct = p.q>0?Math.round((p.v/p.q)*100):100;
-      const avail = p.avail !== undefined ? p.avail : (p.st||0)-(p.rs||0);
+      const avail = p.avail;
       const availColor = avail < 0 ? '#c0392b' : '#4a3728';
       const availLabel = avail < 0 ? 'verfügbar ⚠️' : 'verfügbar';
-      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div class="row-sub">'+p.lid+(p.ldt?' · '+p.ldt:'')+(p.px?' · '+fmt(p.px)+'/Pkg':'')+'</div><div class="sbar" style="width:80px;margin-top:5px"><div class="sfill" style="width:'+pct+'%;background:#4a7c2f"></div></div></div><div class="row-r"><div class="row-amt r" style="font-size:18px;color:'+availColor+'">'+avail+'</div><div style="font-size:11px;color:'+availColor+'">'+availLabel+'</div></div></div>';
+      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+'</div>'+(p.px?'<div class="row-sub">'+fmt(p.px)+' €/Pkg</div>':'')+'</div><div class="row-r"><div class="row-amt r" style="font-size:18px;color:'+availColor+'">'+avail+'</div><div style="font-size:11px;color:'+availColor+'">'+availLabel+'</div></div></div>';
     }).join('')+'</div>';
   }
 }
