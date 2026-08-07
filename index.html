@@ -775,11 +775,21 @@ function renderOverview() {
     (d.pr||[]).forEach(p => {
       const avail = (p.st||0) - (p.rs||0);
       const isLatest = latestPoolByName[p.n] && latestPoolByName[p.n].lid === d.id;
-      // Show if: has positive available stock, OR is the latest pool and stock is negative (backorder)
       if (avail > 0 || (isLatest && p.st < 0)) {
         stockItems.push({...p, avail, lid:d.id, ldt:d.dt});
       }
     });
+  });
+  // Add virtual backorder entries for products ordered but with NO delivery pool yet
+  const productsInPools = new Set(Object.keys(latestPoolByName));
+  const orderedNotInPool = {};
+  salesForYear().filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    if (!productsInPools.has(s.p)) {
+      orderedNotInPool[s.p] = (orderedNotInPool[s.p]||0) + s.q;
+    }
+  });
+  Object.entries(orderedNotInPool).forEach(([name, qty]) => {
+    stockItems.push({n:name, pc:'', q:0, px:0, v:0, rs:qty, st:-qty, avail:-qty, lid:'—', ldt:''});
   });
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
