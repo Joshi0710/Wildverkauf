@@ -652,7 +652,7 @@ function syncStockFromSales() {
   // st and v come from Supabase and are only changed by explicit stock operations.
   // This avoids incorrectly zeroing stock on old deliveries with different product names.
   const reservedLeft = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+  salesForYear().filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
     reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
   });
   deliveries.forEach(d => {
