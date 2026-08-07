@@ -800,7 +800,7 @@ function renderOverview() {
       const avail = p.avail;
       const availColor = avail < 0 ? '#c0392b' : '#4a3728';
       const availLabel = avail < 0 ? 'verfügbar ⚠️' : 'verfügbar';
-      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+'</div>'+(p.px?'<div class="row-sub">'+fmt(p.px)+' €/Pkg</div>':'')+'</div><div class="row-r"><div class="row-amt r" style="font-size:18px;color:'+availColor+'">'+avail+'</div><div style="font-size:11px;color:'+availColor+'">'+availLabel+'</div></div></div>';
+      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+'</div></div><div class="row-r"><div class="row-amt r" style="font-size:18px;color:'+availColor+'">'+avail+'</div><div style="font-size:11px;color:'+availColor+'">'+availLabel+'</div></div></div>';
     }).join('')+'</div>';
   }
 }
