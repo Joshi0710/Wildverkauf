@@ -1104,7 +1104,7 @@ function saveDelivery() {
       const q=parseInt(document.getElementById('dp-q-'+i)?.value)||0;
       const x=parseFloat(document.getElementById('dp-x-'+i)?.value)||0;
       const e=document.getElementById('dp-e-'+i)?.value||'';
-      if(q>0) pr.push({n:p,pc:e,q,px:x,rc:Math.round(x*q*100)/100,v:0,rs:0,st:q});
+      if(p) pr.push({n:p,pc:e,q:q||0,px:x,rc:Math.round(x*(q||0)*100)/100,v:0,rs:0,st:q||0});
     }
   }
   const rc=pr.reduce((a,p)=>a+p.rc,0);
@@ -1250,15 +1250,34 @@ function saveEditDelivery() {
       const q = parseInt(document.getElementById('dep-q-'+idx)?.value)||0;
       const x = parseFloat(document.getElementById('dep-x-'+idx)?.value)||0;
       const e = document.getElementById('dep-e-'+idx)?.value||'';
-      if (q > 0) {
-        // Preserve already-sold (v) and recalc st = q - v
-        const v = Math.min(origV, q);
-        const st = Math.max(0, q - v);
-        pr.push({n:p, pc:e, q, px:x, rc:Math.round(x*q*100)/100, v, rs:0, st});
+      if (p) {
+        // st = new total q minus already-sold (v). v stays unchanged (already sold).
+        // For new products (origQ=0) or qty increase: extra stock goes to st.
+        const v = Math.min(origV, q||0);
+        const st = (q||0) - v; // allow negative for backorder
+        pr.push({n:p, pc:e, q:q||0, px:x, rc:Math.round(x*(q||0)*100)/100, v, rs:0, st});
       }
     }
     idx++;
   }
+  // For each product in the new list, check if there are already delivered sales
+  // that should be accounted for (important for newly added products like Keisburger)
+  pr.forEach(p => {
+    if (p.q === 0) return; // no qty yet, skip
+    // Count delivered, non-gratis sales for this product across all deliveries
+    const totalDelivered = sales.filter(s => isDelivered(s) && !isGratis(s) && s.p === p.n)
+      .reduce((a, s) => a + s.q, 0);
+    // Count how much is already accounted for in OTHER delivery pools (not this one)
+    const otherPoolsV = deliveries
+      .filter(dl => dl.id !== dEditingId)
+      .flatMap(dl => dl.pr || [])
+      .filter(op => op.n === p.n)
+      .reduce((a, op) => a + (op.v || 0), 0);
+    // This pool should account for the remainder
+    const thisPoolV = Math.min(p.q, Math.max(0, totalDelivered - otherPoolsV));
+    p.v = thisPoolV;
+    p.st = p.q - thisPoolV; // allow negative for backorder
+  });
   d.pr = pr;
   d.rc = Math.round(pr.reduce((a,p)=>a+p.rc,0)*100)/100;
   d.bn = Math.round((d.rc - d.m)*100)/100;
