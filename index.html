@@ -540,6 +540,8 @@ function setMode(edit) {
   editMode = edit;
   document.getElementById('btn-view').className = 'hbtn' + (edit ? '' : ' v-on');
   document.getElementById('btn-edit').className = 'hbtn' + (edit ? ' e-on' : '');
+  // Re-render deliveries so the ✏️ Bearbeiten button appears/disappears
+  if (typeof renderDeliveries === 'function') renderDeliveries();
 }
 
 // ===== YEAR =====
