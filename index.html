@@ -259,6 +259,24 @@
   </div>
 </div>
 
+<!-- EDIT DELIVERY MODAL -->
+<div class="modal-bg" id="modal-del-edit" onclick="if(event.target===this)closeModal('modal-del-edit')">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto">
+    <div class="modal-hdr"><div class="modal-title" id="del-edit-title">Lieferung bearbeiten</div><button class="modal-close" onclick="closeModal('modal-del-edit')">✕</button></div>
+    <div class="form-row">
+      <div class="field"><label>Wildmarke / Nr.</label><input id="de-id" placeholder="z.B. SM1860" readonly style="background:#f0ece6;color:#888"></div>
+      <div class="field"><label>Datum</label><input type="date" id="de-date"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Gewicht (kg)</label><input type="number" id="de-kg"></div>
+      <div class="field"><label>Metzger-Rechnung €</label><input type="number" id="de-metz" step="0.01"></div>
+    </div>
+    <div id="de-prods"></div>
+    <button class="btn" style="width:100%;justify-content:center;margin-bottom:8px" onclick="addDelProdEdit()">+ Produkt hinzufügen</button>
+    <button class="btn btn-p" style="width:100%;justify-content:center" onclick="saveEditDelivery()">Änderungen speichern</button>
+  </div>
+</div>
+
 <!-- LOADER -->
 <div id="loader" class="loader" style="display:none">
   <div><div style="font-size:36px;margin-bottom:12px">🦌</div><div id="loader-msg">Daten werden geladen...</div></div>
@@ -331,12 +349,6 @@
     <div class="used-toggle" id="wm-used-toggle" onclick="wm_toggleUsed()">
       <div class="used-toggle-check" id="wm-used-toggle-check"></div>
       <span class="used-toggle-text" id="wm-used-toggle-text">Als genutzt markieren</span>
-    </div>
-
-    <div class="field-group" id="wm-date-group" style="display:none">
-      <label class="field-label">📅 Datum genutzt</label>
-      <input type="date" class="field-input" id="wm-modal-date" onchange="wm_updateDateSeason()">
-      <div id="wm-date-season" style="margin-top:6px;font-size:12px;color:#3a5acc;font-weight:600;min-height:18px"></div>
     </div>
 
     <div class="field-group">
@@ -619,7 +631,7 @@ function updateStock(produit, qteChange) {
         // Reduce stock - take what's available
         const take = Math.min(remaining, p.st||0);
         p.v = (p.v||0) + take;
-        p.st = Math.max(0, (p.st||0) - take);
+        p.st = (p.st||0) - take; // allow negative (backorder)
         remaining -= take;
       } else {
         // Restore stock - add back
@@ -635,10 +647,8 @@ function updateStock(produit, qteChange) {
 
 function syncStockFromSales() {
   // Only update rs (reserved) from undelivered sales.
-  // st and v are only changed by explicit stock operations (updateStock), triggered when a
-  // sale's delivered-status actually changes for a stock-tracked product.
-  // This avoids incorrectly recalculating stock for non-pooled "unique piece" products
-  // (Reck, Gigue, Ragout, etc. where each delivery entry is its own unique item).
+  // st and v come from Supabase and are only changed by explicit stock operations.
+  // This avoids incorrectly zeroing stock on old deliveries with different product names.
   const reservedLeft = {};
   sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
     reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
@@ -750,15 +760,17 @@ function renderOverview() {
 
   // Stock
   const stockItems = [];
-  deliveries.forEach(d => { d.pr && d.pr.forEach(p => { if ((p.st||0) - (p.rs||0) > 0) stockItems.push({...p, lid:d.id, ldt:d.dt}); }); });
+  deliveries.forEach(d => { d.pr && d.pr.forEach(p => { const avail = (p.st||0) - (p.rs||0); if (avail !== 0 || (p.st||0) > 0) stockItems.push({...p, avail, lid:d.id, ldt:d.dt}); }); });
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
     sl.innerHTML = '<div class="card"><div class="empty">Kein Lagerbestand</div></div>';
   } else {
     sl.innerHTML = '<div class="card">'+stockItems.map(p => {
       const pct = p.q>0?Math.round((p.v/p.q)*100):100;
-      const avail = Math.max(0, (p.st||0) - (p.rs||0));
-      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div class="row-sub">'+p.lid+(p.ldt?' · '+p.ldt:'')+(p.px?' · '+fmt(p.px)+'/Pkg':'')+'</div><div class="sbar" style="width:80px;margin-top:5px"><div class="sfill" style="width:'+pct+'%;background:#4a7c2f"></div></div></div><div class="row-r"><div class="row-amt r" style="font-size:18px">'+avail+'</div><div style="font-size:11px;color:#6b5d4a">verfügbar</div></div></div>';
+      const avail = p.avail !== undefined ? p.avail : (p.st||0)-(p.rs||0);
+      const availColor = avail < 0 ? '#c0392b' : '#4a3728';
+      const availLabel = avail < 0 ? 'verfügbar ⚠️' : 'verfügbar';
+      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div class="row-sub">'+p.lid+(p.ldt?' · '+p.ldt:'')+(p.px?' · '+fmt(p.px)+'/Pkg':'')+'</div><div class="sbar" style="width:80px;margin-top:5px"><div class="sfill" style="width:'+pct+'%;background:#4a7c2f"></div></div></div><div class="row-r"><div class="row-amt r" style="font-size:18px;color:'+availColor+'">'+avail+'</div><div style="font-size:11px;color:'+availColor+'">'+availLabel+'</div></div></div>';
     }).join('')+'</div>';
   }
 }
@@ -797,7 +809,8 @@ function renderDeliveries() {
   el.innerHTML = list.map(d => {
     const pos = d.bn>=0;
     const stk = (d.pr||[]).reduce((a,p)=>a+p.st,0);
-    return '<div class="del-card"><div class="del-hdr" onclick="toggleDel(this)"><div><div style="font-weight:600;font-size:13px">'+d.id+(d.dt?' — '+d.dt:'')+'</div><div style="font-size:12px;color:#6b5d4a;margin-top:2px">'+(d.kg?d.kg+' kg · ':'')+'Metzger: '+fmt(d.m)+(stk>0?' · <span style="color:#c0392b">'+stk+' Lager</span>':'')+'</div></div><div style="text-align:right"><div style="font-weight:700;font-size:15px;color:'+(pos?'#4a7c2f':'#c0392b')+'">'+(pos?'+':'')+fmt(d.bn)+'</div><div style="font-size:11px;color:#6b5d4a">Verk: '+fmt(d.rc)+'</div></div></div><div class="del-body">'+(d.pr||[]).map(p=>{
+    const editBtn = editMode ? '<button onclick="event.stopPropagation();openEditDelivery(\'' + d.id + '\')" style="background:#f0e8d8;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#4a3728;flex-shrink:0">✏️ Bearbeiten</button>' : '';
+    return '<div class="del-card"><div class="del-hdr" onclick="toggleDel(this)"><div><div style="font-weight:600;font-size:13px">'+d.id+(d.dt?' — '+d.dt:'')+'</div><div style="font-size:12px;color:#6b5d4a;margin-top:2px">'+(d.kg?d.kg+' kg · ':'')+'Metzger: '+fmt(d.m)+(stk>0?' · <span style="color:#c0392b">'+stk+' Lager</span>':'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><div style="text-align:right"><div style="font-weight:700;font-size:15px;color:'+(pos?'#4a7c2f':'#c0392b')+'">'+(pos?'+':'')+fmt(d.bn)+'</div><div style="font-size:11px;color:#6b5d4a">Verk: '+fmt(d.rc)+'</div></div>'+editBtn+'</div></div><div class="del-body">'+(d.pr||[]).map(p=>{
       const pct=p.q>0?Math.round((p.v/p.q)*100):100;
       return '<div class="prow"><div><div style="font-weight:500">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div style="font-size:11px;color:#6b5d4a">'+p.q+' Pkg · '+fmt(p.px)+'/Pkg</div></div><div style="text-align:right"><div style="font-size:12px;font-weight:600">'+p.v+'/'+p.q+'</div><div class="sbar"><div class="sfill" style="width:'+pct+'%;background:'+(p.st>0?'#c0392b':'#4a7c2f')+'"></div></div>'+(p.st>0?'<div style="font-size:11px;color:#c0392b">'+p.st+' Lager</div>':'')+'</div></div>';
     }).join('')+'<div style="padding:8px 14px;background:#f9f7f4;font-size:12px;color:#6b5d4a;text-align:center">Recette: '+fmt(d.rc)+' · Metzger: '+fmt(d.m)+' · Ertrag: <strong style="color:'+(d.bn>=0?'#4a7c2f':'#c0392b')+'">'+fmt(d.bn)+'</strong></div></div></div>';
@@ -933,28 +946,18 @@ function addOrder() {
   };
   sales.push(newSale);
   // Update stock if delivered
-  if (isDelivered(newSale) && !isGratis(newSale)) updateStock(newSale.p, newSale.q);
-  syncStockFromSales();
+  if (isDelivered(newSale) && !isGratis(newSale)) syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-new');
   renderAll();
 }
 
-let editingOldDelivered = false;
-let editingOldGratis = false;
-let editingOldProduct = '';
-let editingOldQty = 0;
-
 function openEdit(id) {
   if (!editMode) return;
   const s=sales.find(x=>x.i===id);
   if(!s)return;
   editingId=id;
-  editingOldDelivered = isDelivered(s);
-  editingOldGratis = isGratis(s);
-  editingOldProduct = s.p;
-  editingOldQty = s.q;
   document.getElementById('e-client').value=s.c||'';
   document.getElementById('e-prod').value=s.p||'';
   document.getElementById('e-qte').value=s.q||1;
@@ -983,14 +986,7 @@ function saveEdit() {
   s.z = (payVal === 'gratuit') ? '' : payVal;
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
-
-  // Adjust stock only for the actual transition (old -> new), per stock-tracked product (Wurst/Pakage-Art).
-  // Undo the old effect (if it was previously delivered & not gratis), then apply the new effect.
-  const wasStockEffect = editingOldDelivered && !editingOldGratis;
-  const isStockEffect = isDelivered(s) && !isGratis(s);
-  if (wasStockEffect) updateStock(editingOldProduct, -editingOldQty); // give back old qty to stock
-  if (isStockEffect) updateStock(s.p, s.q); // take new qty from stock
-
+  // Recalculate all stock from scratch - single source of truth
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -1001,9 +997,7 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
-  const s = sales.find(x => x.i === editingId);
-  if (s && isDelivered(s) && !isGratis(s)) updateStock(s.p, -s.q); // give back stock
-  sales = sales.filter(x => x.i !== editingId);
+  sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
   closeModal('modal-edit');
@@ -1098,6 +1092,160 @@ function saveDelivery() {
   deliveries.push({id,dt:dt?new Date(dt).toLocaleDateString('de-LU'):'',kg,m:metz,rc:Math.round(rc*100)/100,bn:Math.round((rc-metz)*100)/100,y:currentYear==='all'?new Date().getFullYear():currentYear,pr});
   hasUnsavedChanges = true; updateSaveBtn();
   closeModal('modal-del');
+  renderAll();
+}
+
+// ===== EDIT DELIVERY =====
+let dEditProdCount = 0;
+let dEditingId = null;
+
+function openEditDelivery(id) {
+  const d = deliveries.find(x => x.id === id);
+  if (!d) return;
+  dEditingId = id;
+  dEditProdCount = 0;
+  document.getElementById('de-id').value = d.id;
+  const dtISO = d.dt ? (d.dt.split('/').length===3 ? d.dt.split('/').reverse().join('-') : '') : '';
+  document.getElementById('de-date').value = dtISO.length===8 ? '20'+dtISO.slice(6)+'-'+dtISO.slice(3,5)+'-'+dtISO.slice(0,2) : '';
+  document.getElementById('de-kg').value = d.kg || '';
+  document.getElementById('de-metz').value = d.m || '';
+  document.getElementById('de-prods').innerHTML = '';
+  // Pre-fill existing products
+  (d.pr || []).forEach(p => {
+    const i = dEditProdCount++;
+    const el = document.createElement('div');
+    el.style.cssText = 'background:#f9f7f4;border-radius:8px;padding:10px;margin-bottom:8px;position:relative';
+    const isStueck = p.q === 1;
+    el.innerHTML =
+      '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:#fbeaea;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;color:#c0392b">✕</button>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
+        '<div class="field"><label>Produkt</label><input list="dl-prods" id="dep-p-'+i+'" value="'+p.n+'" placeholder="Produkt..."></div>'+
+        '<div class="field"><label>Art</label>'+
+          '<select id="dep-mode-'+i+'" onchange="toggleDepMode('+i+')" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.2);font-family:inherit;font-size:14px">'+
+            '<option value="pakete"'+(isStueck?'':' selected')+'>Pakete</option>'+
+            '<option value="stueck"'+(isStueck?' selected':'')+'>Ganzes Stück</option>'+
+          '</select>'+
+        '</div>'+
+      '</div>'+
+      '<div id="dep-pakete-'+i+'" style="'+(isStueck?'display:none':'')+'">'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+          '<div class="field"><label>Emballage</label><input id="dep-e-'+i+'" value="'+(p.pc||'')+'" placeholder="5"></div>'+
+          '<div class="field"><label>Pakete</label><input type="number" id="dep-q-'+i+'" value="'+(p.q||0)+'"></div>'+
+          '<div class="field"><label>Preis €/Pkg</label><input type="number" id="dep-x-'+i+'" value="'+(p.px||0)+'" step="0.5" oninput="calcDepTotal('+i+')"></div>'+
+        '</div>'+
+      '</div>'+
+      '<div id="dep-stueck-'+i+'" style="'+(isStueck?'':'display:none')+'">'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+          '<div class="field"><label>Gewicht (kg)</label><input type="number" id="dep-kg-'+i+'" value="'+(isStueck?p.pc.replace('kg',''):'')+'" step="0.1" oninput="calcDepTotal('+i+')"></div>'+
+          '<div class="field"><label>Preis €/kg</label><input type="number" id="dep-kgp-'+i+'" value="'+(isStueck&&p.q===1?p.px:'')+'  " step="0.5" oninput="calcDepTotal('+i+')"></div>'+
+          '<div class="field"><label>Total €</label><input type="number" id="dep-tot-'+i+'" value="'+(isStueck?p.rc:'')+'" step="0.01" style="background:#e8f2e0;font-weight:600" readonly></div>'+
+        '</div>'+
+      '</div>';
+    document.getElementById('de-prods').appendChild(el);
+    // Store original v (already sold) on the element for later reference
+    el.dataset.origV = p.v || 0;
+    el.dataset.origSt = p.st || 0;
+    el.dataset.origQ = p.q || 0;
+    el.dataset.origN = p.n || '';
+  });
+  document.getElementById('modal-del-edit').classList.add('open');
+}
+
+function toggleDepMode(i) {
+  const mode = document.getElementById('dep-mode-'+i).value;
+  document.getElementById('dep-pakete-'+i).style.display = mode==='pakete' ? '' : 'none';
+  document.getElementById('dep-stueck-'+i).style.display = mode==='stueck' ? '' : 'none';
+}
+
+function calcDepTotal(i) {
+  const mode = document.getElementById('dep-mode-'+i)?.value;
+  if (mode === 'stueck') {
+    const kg = parseFloat(document.getElementById('dep-kg-'+i)?.value)||0;
+    const kgp = parseFloat(document.getElementById('dep-kgp-'+i)?.value)||0;
+    document.getElementById('dep-tot-'+i).value = Math.round(kg*kgp*100)/100 || '';
+  }
+}
+
+function addDelProdEdit() {
+  const i = dEditProdCount++;
+  const el = document.createElement('div');
+  el.style.cssText = 'background:#f9f7f4;border-radius:8px;padding:10px;margin-bottom:8px;position:relative';
+  el.innerHTML =
+    '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:#fbeaea;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:12px;color:#c0392b">✕</button>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
+      '<div class="field"><label>Produkt</label><input list="dl-prods" id="dep-p-'+i+'" placeholder="Produkt..."></div>'+
+      '<div class="field"><label>Art</label>'+
+        '<select id="dep-mode-'+i+'" onchange="toggleDepMode('+i+')" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(0,0,0,0.2);font-family:inherit;font-size:14px">'+
+          '<option value="pakete">Pakete</option>'+
+          '<option value="stueck">Ganzes Stück</option>'+
+        '</select>'+
+      '</div>'+
+    '</div>'+
+    '<div id="dep-pakete-'+i+'">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        '<div class="field"><label>Emballage</label><input id="dep-e-'+i+'" placeholder="5"></div>'+
+        '<div class="field"><label>Pakete</label><input type="number" id="dep-q-'+i+'"></div>'+
+        '<div class="field"><label>Preis €/Pkg</label><input type="number" id="dep-x-'+i+'" step="0.5" oninput="calcDepTotal('+i+')"></div>'+
+      '</div>'+
+    '</div>'+
+    '<div id="dep-stueck-'+i+'" style="display:none">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        '<div class="field"><label>Gewicht (kg)</label><input type="number" id="dep-kg-'+i+'" step="0.1" oninput="calcDepTotal('+i+')"></div>'+
+        '<div class="field"><label>Preis €/kg</label><input type="number" id="dep-kgp-'+i+'" step="0.5" oninput="calcDepTotal('+i+')"></div>'+
+        '<div class="field"><label>Total €</label><input type="number" id="dep-tot-'+i+'" step="0.01" style="background:#e8f2e0;font-weight:600" readonly></div>'+
+      '</div>'+
+    '</div>';
+  document.getElementById('de-prods').appendChild(el);
+}
+
+function saveEditDelivery() {
+  const d = deliveries.find(x => x.id === dEditingId);
+  if (!d) return;
+  saveUndo('Lieferung bearbeiten');
+  // Update basic fields
+  const dt = document.getElementById('de-date').value;
+  d.dt = dt ? new Date(dt).toLocaleDateString('de-LU') : d.dt;
+  d.kg = document.getElementById('de-kg').value || d.kg;
+  d.m = parseFloat(document.getElementById('de-metz').value) || d.m;
+  // Rebuild products from all dep-* inputs in the modal
+  const pr = [];
+  const prods = document.getElementById('de-prods').children;
+  let idx = 0;
+  for (let el of prods) {
+    const pEl = document.getElementById('dep-p-'+idx);
+    const modeEl = document.getElementById('dep-mode-'+idx);
+    if (!pEl || !modeEl) { idx++; continue; }
+    const p = pEl.value.trim();
+    const mode = modeEl.value;
+    if (!p) { idx++; continue; }
+    const origV = parseInt(el.dataset.origV || 0);
+    const origSt = parseInt(el.dataset.origSt || 0);
+    const origQ = parseInt(el.dataset.origQ || 0);
+    if (mode === 'stueck') {
+      const kg = parseFloat(document.getElementById('dep-kg-'+idx)?.value)||0;
+      const kgp = parseFloat(document.getElementById('dep-kgp-'+idx)?.value)||0;
+      const tot = Math.round(kg*kgp*100)/100;
+      if (kg > 0) pr.push({n:p, pc:kg+'kg', q:1, px:tot, rc:tot, v:origV, rs:0, st:origSt||1});
+    } else {
+      const q = parseInt(document.getElementById('dep-q-'+idx)?.value)||0;
+      const x = parseFloat(document.getElementById('dep-x-'+idx)?.value)||0;
+      const e = document.getElementById('dep-e-'+idx)?.value||'';
+      if (q > 0) {
+        // Preserve already-sold (v) and recalc st = q - v
+        const v = Math.min(origV, q);
+        const st = Math.max(0, q - v);
+        pr.push({n:p, pc:e, q, px:x, rc:Math.round(x*q*100)/100, v, rs:0, st});
+      }
+    }
+    idx++;
+  }
+  d.pr = pr;
+  d.rc = Math.round(pr.reduce((a,p)=>a+p.rc,0)*100)/100;
+  d.bn = Math.round((d.rc - d.m)*100)/100;
+  syncStockFromSales();
+  hasUnsavedChanges = true;
+  updateSaveBtn();
+  closeModal('modal-del-edit');
   renderAll();
 }
 
@@ -1371,7 +1519,6 @@ async function wm_load() {
       hunter:   r.hunter   || '',
       comment:  r.comment  || '',
       huntType: r.hunt_type || 'ansitz',
-      usedDate: r.used_date || '',
     }));
   } catch(e) {
     wm_showError('Verbindung zu Supabase fehlgeschlagen.<br>Bitte URL und API-Key prüfen.<br><small>' + e.message + '</small>');
@@ -1390,7 +1537,6 @@ async function wm_save(mark) {
       hunter:    mark.hunter,
       comment:   mark.comment,
       hunt_type: mark.huntType,
-      used_date: mark.usedDate || null,
     }),
   });
 }
@@ -1443,8 +1589,8 @@ function wm_getFiltered() {
     if (wm_filters.season !== 'all') {
       // Free marks always shown regardless of season filter
       if (!m.used) return true;
-      // Used marks filtered by season - prefer usedDate, fallback to comment
-      const s = m.usedDate ? wm_dateToSeason(m.usedDate) : wm_detectSeason(m.comment);
+      // Used marks filtered by season
+      const s = wm_detectSeason(m.comment);
       if (s !== wm_filters.season) return false;
     }
     if (wm_filters.huntType !== 'all') {
@@ -1492,11 +1638,8 @@ function wm_renderMain() {
     `;
     marks.forEach(m => {
       const hunterText = m.hunter ? `${wm_hunterDot(m.hunter)} ${m.hunter}` : '<span style="color:#bbb">Nicht zugewiesen</span>';
-      // Season: prefer explicit usedDate, fallback to comment detection
-      const season = m.usedDate ? wm_dateToSeason(m.usedDate) : wm_detectSeason(m.comment);
+      const season = wm_detectSeason(m.comment);
       const seasonBadge = season ? `<span style="font-size:9px;font-weight:600;background:#e8f0ff;color:#3a5acc;padding:1px 6px;border-radius:8px;flex-shrink:0">${season}</span>` : '';
-      // Date badge on card if usedDate set
-      const dateBadge = m.usedDate ? `<span style="font-size:9px;font-weight:500;background:#f0f4ff;color:#555;padding:1px 6px;border-radius:8px;flex-shrink:0">📅 ${m.usedDate.split('-').reverse().join('.')}</span>` : '';
       const HT_STYLE = { ansitz: ['#e8f5e8','#2a7a2a','🎯'], battue: ['#fff4e0','#a05a00','🚶'], mort: ['#f5e8f5','#7a2a7a','💀'] };
       let huntBadge = '';
       if (m.used) {
@@ -1512,7 +1655,7 @@ function wm_renderMain() {
             <div class="mark-check ${m.used ? 'checked' : 'unchecked'}">${m.used ? '✓' : ''}</div>
           </div>
           <div class="mark-hunter">${hunterText}</div>
-          ${m.used ? `<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">${huntBadge}${seasonBadge}${dateBadge}</div>` : ''}
+          ${m.used ? `<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">${huntBadge}${seasonBadge}</div>` : ''}
           ${m.comment ? `<div class="mark-comment">📝 ${esc(m.comment)}</div>` : ''}
         </div>
       `;
@@ -1575,8 +1718,6 @@ function wm_openModal(id) {
   document.getElementById('wm-modal-sub').textContent = CATEGORY_NAMES[m.cat] || m.cat;
   document.getElementById('wm-modal-hunter').value = m.hunter || '';
   document.getElementById('wm-modal-comment').value = m.comment || '';
-  document.getElementById('wm-modal-date').value = m.usedDate || '';
-  wm_updateDateSeason();
   // Pre-select jagdart: stored value wins, else detect from comment
   const ht = m.huntType || (m.used ? wm_detectHuntType(m.comment) : 'ansitz');
   document.querySelector(`#wm-modal input[name="modal-hunttype"][value="${ht}"]`).checked = true;
@@ -1595,31 +1736,6 @@ function wm_toggleUsed() {
   wm_updateUsedToggle();
 }
 
-function wm_dateToSeason(dateStr) {
-  // dateStr is YYYY-MM-DD (HTML date input format)
-  if (!dateStr) return null;
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return null;
-  const year = parseInt(parts[0]);
-  const month = parseInt(parts[1]);
-  // Jagdjahr starts April 1st
-  const seasonStart = month >= 4 ? year : year - 1;
-  const seasonEnd = seasonStart + 1;
-  const key = `${String(seasonStart).slice(-2)}-${String(seasonEnd).slice(-2)}`;
-  return SEASONS.includes(key) ? key : key; // return even if not in list
-}
-
-function wm_updateDateSeason() {
-  const dateVal = document.getElementById('wm-modal-date').value;
-  const seasonEl = document.getElementById('wm-date-season');
-  if (dateVal) {
-    const s = wm_dateToSeason(dateVal);
-    seasonEl.textContent = s ? `📅 Jagdsaison: ${s}` : '';
-  } else {
-    seasonEl.textContent = '';
-  }
-}
-
 function wm_updateUsedToggle() {
   const toggle = document.getElementById('wm-used-toggle');
   const check = document.getElementById('wm-used-toggle-check');
@@ -1628,12 +1744,10 @@ function wm_updateUsedToggle() {
     toggle.classList.add('on');
     check.textContent = '✓';
     text.textContent = 'Genutzt ✓';
-    document.getElementById('wm-date-group').style.display = '';
   } else {
     toggle.classList.remove('on');
     check.textContent = '';
     text.textContent = 'Als genutzt markieren';
-    document.getElementById('wm-date-group').style.display = 'none';
   }
 }
 
@@ -1656,7 +1770,6 @@ async function wm_saveModal() {
   m.used = wm_modalUsed;
   m.hunter = document.getElementById('wm-modal-hunter').value;
   m.comment = document.getElementById('wm-modal-comment').value;
-  m.usedDate = wm_modalUsed ? (document.getElementById('wm-modal-date').value || '') : '';
   const checkedHT = document.querySelector('#wm-modal input[name="modal-hunttype"]:checked');
   m.huntType = checkedHT ? checkedHT.value : 'ansitz';
   // Optimistic UI update
