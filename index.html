@@ -450,35 +450,48 @@ async function saveData() {
   try {
     const sd = sales.map(s => ({id:s.i,c:s.c,q:s.q,e:s.e,p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
     const dd = deliveries.map(d => ({id:d.id,dt:d.dt||'',kg:String(d.kg||''),m:d.m||0,rc:d.rc||0,bn:d.bn||0,y:d.y||2026,
-      // Strip rs before saving - rs is always recalculated locally
-      // st is preserved from Supabase (manually managed)
       products:JSON.stringify((d.pr||[]).map(p => {const {rs, ...rest} = p; return rest;}))}));
-    // Guard: don't save if data is empty (would delete everything)
-    if (sd.length === 0) throw new Error('Keine Daten zum Speichern - Abbruch');
-    // Upsert sales in batches
-    for (let i=0; i<sd.length; i+=100) {
-      await sbFetch('wv_sales', {method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(sd.slice(i,i+100))});
-    }
-    // Delete removed sales - only safe if all data was loaded
-    if (allDataLoaded) {
-      const keepSaleIds = sd.map(s=>s.id).join(',');
-      if (keepSaleIds) await sbFetch('wv_sales?id=not.in.('+keepSaleIds+')', {method:'DELETE'});
-    }
-    // Upsert deliveries
-    if (dd.length > 0) {
-      await sbFetch('wv_deliveries', {method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(dd)});
-      // Only delete removed deliveries if we know we have the complete dataset
-      if (allDataLoaded) {
-        const keepDelIds = dd.map(d => "'" + d.id.replace(/'/g,"''") + "'").join(',');
-        if (keepDelIds) await sbFetch('wv_deliveries?id=not.in.('+keepDelIds+')', {method:'DELETE'});
+
+    // Sécherheetscheck: DELETE nëmmen wann allDataLoaded=true
+    if (!allDataLoaded) throw new Error('Donnéeën net komplett gelueden - Speichern ofgebrach fir Dateverlust ze verhënneren');
+
+    // Upsert sales (och wann eidel - erlaabt bewosst läschen vun all Bestellungen)
+    if (sd.length > 0) {
+      for (let i=0; i<sd.length; i+=100) {
+        await sbFetch('wv_sales', {method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(sd.slice(i,i+100))});
       }
     }
+    // DELETE geläschte Sales - sécher weil allDataLoaded=true
+    const keepSaleIds = sd.map(s => String(s.id)).filter(Boolean);
+    if (keepSaleIds.length > 0) {
+      const idsParam = keepSaleIds.join(',');
+      await sbFetch('wv_sales?id=not.in.(' + idsParam + ')', {method:'DELETE'});
+    } else {
+      // All Bestellungen geläscht - bewosst läschen erlaabt
+      await sbFetch('wv_sales', {method:'DELETE', headers:{'Prefer':'return=minimal'}});
+    }
+
+    // Upsert deliveries
+    if (dd.length > 0) {
+      await sbFetch('wv_deliveries', {method:'POST', headers:{'Prefer':'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(dd)});
+    }
+    // DELETE geläschte Deliveries - sécher weil allDataLoaded=true
+    const keepDelIds = dd.map(d => d.id).filter(Boolean);
+    if (keepDelIds.length > 0) {
+      // IDs als quoted strings fir PostgREST not.in
+      const delIdsParam = keepDelIds.map(id => '"' + id.replace(/"/g, '\\"') + '"').join(',');
+      await sbFetch('wv_deliveries?id=not.in.(' + delIdsParam + ')', {method:'DELETE'});
+    } else {
+      // Keng Liwwerungen méi - all geläscht
+      await sbFetch('wv_deliveries', {method:'DELETE', headers:{'Prefer':'return=minimal'}});
+    }
+
     hasUnsavedChanges = false; updateSaveBtn();
     btn.textContent = '✓';
     btn.style.color = '#8bc34a';
     setTimeout(() => { btn.textContent = '💾'; btn.style.color = ''; btn.disabled = false; }, 2000);
   } catch(e) {
-    alert('Fehler: '+e.message);
+    alert('Fehler beim Speichern: '+e.message);
     btn.textContent = '💾';
     btn.disabled = false;
   }
@@ -492,17 +505,22 @@ async function loadFromDB() {
       Promise.all([sbFetch('wv_sales?select=*&order=id'), sbFetch('wv_deliveries?select=*&order=id')]),
       p
     ]);
-    if (sd && sd.length > 0) {
+    // Load successful - mark as fully loaded
+    if (Array.isArray(sd)) {
       sales = sd.map(s => ({i:s.id,c:s.c,q:s.q,e:s.e||'',p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
     }
-    if (dd && dd.length > 0) {
+    if (Array.isArray(dd)) {
       deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,
         pr:(typeof d.products==='string'?JSON.parse(d.products):(d.products||[])).map(p => ({
           ...p,
-          rs: 0 // always reset rs, recalculated by syncStockFromSales
+          rs: 0
         }))}));
     }
-  } catch(e) { console.log('DB load failed, using builtin:', e.message); }
+    allDataLoaded = true; // Safe to DELETE: all data from Supabase confirmed loaded
+  } catch(e) {
+    allDataLoaded = false;
+    console.log('DB load failed, using builtin:', e.message);
+  }
   hideLoader();
   renderAll();
 }
@@ -1540,15 +1558,19 @@ let wm_modalUsed = false;
 // SUPABASE_KEY handled by main SB_KEY // eyJhbGc...
 
 async function wm_sbFetch(path, options = {}) {
+  const { prefer, headers: extraHeaders, method, body, ...restOpts } = options;
+  const headers = {
+    'apikey': SB_KEY,
+    'Authorization': `Bearer ${SB_KEY}`,
+    'Content-Type': 'application/json',
+  };
+  if (prefer) headers['Prefer'] = prefer;
+  if (extraHeaders) Object.assign(headers, extraHeaders);
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
-    headers: {
-      'apikey': SB_KEY,
-      'Authorization': `Bearer ${SB_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': options.prefer || '',
-      ...options.headers,
-    },
-    ...options,
+    method: method || 'GET',
+    headers,
+    ...(body !== undefined ? {body} : {}),
+    ...restOpts,
   });
   if (!res.ok) throw new Error(`Supabase Fehler: ${res.status} ${await res.text()}`);
   const text = await res.text();
