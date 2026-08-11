@@ -772,29 +772,30 @@ function renderOverview() {
       '</tbody></table></div>';
   }
 
-  // Stock: aggregate across ALL deliveries per product name
+  // Stock: aggregate st across ALL deliveries per product name
   const stockByName = {};
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
       if (!p.n) return;
-      if (!stockByName[p.n]) stockByName[p.n] = {st:0, rs:0, px:p.px||0};
+      if (!stockByName[p.n]) stockByName[p.n] = {st:0, px:p.px||0};
       stockByName[p.n].st += (p.st||0);
-      stockByName[p.n].rs += (p.rs||0);
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // Undelivered orders per product (current year filter)
-  const undeliveredByProduct = {};
-  salesForYear().filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    undeliveredByProduct[s.p] = (undeliveredByProduct[s.p]||0) + s.q;
+  // All undelivered orders per product (all years) - these are reserved
+  const reservedByProduct = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    reservedByProduct[s.p] = (reservedByProduct[s.p]||0) + s.q;
   });
-  // Build display items: one row per product
+  // Build display items: frei = st - reserved (all undelivered orders)
   const stockItems = [];
-  // Products with real pools
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const avail = agg.st;
-    if (avail !== 0 || agg.st > 0) stockItems.push({n:name, avail, px:agg.px});
+    const reserved = reservedByProduct[name] || 0;
+    const avail = agg.st - reserved;
+    if (agg.st > 0 || avail !== 0) stockItems.push({n:name, avail, px:agg.px});
   });
+  // Undelivered orders per product for virtual backorder check
+  const undeliveredByProduct = reservedByProduct;
   // Products with undelivered orders but no pool (or pool avail=0)
   const alreadyInStock = new Set(stockItems.map(s => s.n));
   Object.entries(undeliveredByProduct).forEach(([name, qty]) => {
