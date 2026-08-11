@@ -782,9 +782,10 @@ function renderOverview() {
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // ALL orders per product (all years, delivered or not) reduce available stock
+  // Undelivered orders reduce available stock
+  // Delivered orders are already reflected in st (via v = sold from stock)
   const reservedByProduct = {};
-  sales.filter(s => !isGratis(s)).forEach(s => {
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
     reservedByProduct[s.p] = (reservedByProduct[s.p]||0) + s.q;
   });
   // Build display items: frei = st - reserved (all undelivered orders)
