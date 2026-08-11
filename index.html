@@ -782,21 +782,17 @@ function renderOverview() {
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // Undelivered orders reduce available stock
-  // Delivered orders are already reflected in st (via v = sold from stock)
-  const reservedByProduct = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    reservedByProduct[s.p] = (reservedByProduct[s.p]||0) + s.q;
-  });
-  // Build display items: frei = st - reserved (all undelivered orders)
+  // Stock = st directly from Supabase (manually managed)
+  // Never modified by order status changes
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const reserved = reservedByProduct[name] || 0;
-    const avail = agg.st - reserved;
-    if (agg.st > 0 || avail !== 0) stockItems.push({n:name, avail, px:agg.px});
+    if (agg.st > 0) stockItems.push({n:name, avail:agg.st, px:agg.px});
   });
-  // Undelivered orders per product for virtual backorder check
-  const undeliveredByProduct = reservedByProduct;
+  // Undelivered orders for virtual backorder display only
+  const undeliveredByProduct = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    undeliveredByProduct[s.p] = (undeliveredByProduct[s.p]||0) + s.q;
+  });
   // Products with undelivered orders but no pool (or pool avail=0)
   const alreadyInStock = new Set(stockItems.map(s => s.n));
   Object.entries(undeliveredByProduct).forEach(([name, qty]) => {
