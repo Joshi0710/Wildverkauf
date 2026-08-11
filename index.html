@@ -450,8 +450,9 @@ async function saveData() {
   try {
     const sd = sales.map(s => ({id:s.i,c:s.c,q:s.q,e:s.e,p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
     const dd = deliveries.map(d => ({id:d.id,dt:d.dt||'',kg:String(d.kg||''),m:d.m||0,rc:d.rc||0,bn:d.bn||0,y:d.y||2026,
-      // Strip rs before saving - rs is always recalculated locally from undelivered sales
-      products:JSON.stringify((d.pr||[]).map(p => {const {rs, ...rest} = p; return rest;}))}));
+      // Strip rs and st before saving - both are recalculated locally
+      // st = q - v (always), rs = from undelivered sales
+      products:JSON.stringify((d.pr||[]).map(p => {const {rs, st, ...rest} = p; return rest;}))}));
     // Guard: don't save if data is empty (would delete everything)
     if (sd.length === 0) throw new Error('Keine Daten zum Speichern - Abbruch');
     // Upsert sales in batches
@@ -495,9 +496,13 @@ async function loadFromDB() {
       sales = sd.map(s => ({i:s.id,c:s.c,q:s.q,e:s.e||'',p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
     }
     if (dd && dd.length > 0) {
-      deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,pr:typeof d.products==='string'?JSON.parse(d.products):(d.products||[])}));
+      deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,
+        pr:(typeof d.products==='string'?JSON.parse(d.products):(d.products||[])).map(p => ({
+          ...p,
+          st: p.st !== undefined ? p.st : Math.max(0, (p.q||0) - (p.v||0)), // use saved st if present, else calc
+          rs: 0 // always reset rs, recalculated by syncStockFromSales
+        }))}));
     }
-    allDataLoaded = true;
   } catch(e) { console.log('DB load failed, using builtin:', e.message); }
   hideLoader();
   renderAll();
