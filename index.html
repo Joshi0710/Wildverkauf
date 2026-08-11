@@ -792,7 +792,7 @@ function renderOverview() {
   const stockItems = [];
   // Products with real pools
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const avail = agg.st - agg.rs;
+    const avail = agg.st;
     if (avail !== 0 || agg.st > 0) stockItems.push({n:name, avail, px:agg.px});
   });
   // Products with undelivered orders but no pool (or pool avail=0)
