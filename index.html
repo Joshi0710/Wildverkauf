@@ -449,7 +449,9 @@ async function saveData() {
   btn.disabled = true;
   try {
     const sd = sales.map(s => ({id:s.i,c:s.c,q:s.q,e:s.e,p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
-    const dd = deliveries.map(d => ({id:d.id,dt:d.dt||'',kg:String(d.kg||''),m:d.m||0,rc:d.rc||0,bn:d.bn||0,y:d.y||2026,products:JSON.stringify(d.pr||[])}));
+    const dd = deliveries.map(d => ({id:d.id,dt:d.dt||'',kg:String(d.kg||''),m:d.m||0,rc:d.rc||0,bn:d.bn||0,y:d.y||2026,
+      // Strip rs before saving - rs is always recalculated locally from undelivered sales
+      products:JSON.stringify((d.pr||[]).map(p => {const {rs, ...rest} = p; return rest;}))}));
     // Guard: don't save if data is empty (would delete everything)
     if (sd.length === 0) throw new Error('Keine Daten zum Speichern - Abbruch');
     // Upsert sales in batches
