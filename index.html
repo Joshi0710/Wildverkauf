@@ -788,19 +788,7 @@ function renderOverview() {
   Object.entries(stockByName).forEach(([name, agg]) => {
     if (agg.st > 0) stockItems.push({n:name, avail:agg.st, px:agg.px});
   });
-  // Undelivered orders for virtual backorder display only
-  const undeliveredByProduct = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    undeliveredByProduct[s.p] = (undeliveredByProduct[s.p]||0) + s.q;
-  });
-  // Products with undelivered orders but no pool (or pool avail=0)
-  const alreadyInStock = new Set(stockItems.map(s => s.n));
-  Object.entries(undeliveredByProduct).forEach(([name, qty]) => {
-    if (!alreadyInStock.has(name)) {
-      stockItems.push({n:name, avail:-qty, px:0});
-    }
-  });
-  // Sort: positive first, then negative
+  // Sort by avail descending
   stockItems.sort((a,b) => b.avail - a.avail);
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
