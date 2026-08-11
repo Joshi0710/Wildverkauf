@@ -497,6 +497,7 @@ async function loadFromDB() {
     if (dd && dd.length > 0) {
       deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,pr:typeof d.products==='string'?JSON.parse(d.products):(d.products||[])}));
     }
+    allDataLoaded = true;
   } catch(e) { console.log('DB load failed, using builtin:', e.message); }
   hideLoader();
   renderAll();
