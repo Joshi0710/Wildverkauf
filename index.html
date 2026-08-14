@@ -800,11 +800,16 @@ function renderOverview() {
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // Stock = st directly from Supabase (manually managed)
-  // Never modified by order status changes
+  // Stock = st (Supabase) minus ongeliwwert Bestellungen
+  // Wann geliwwert → st manuell via SQL upasssen
+  const undeliveredQty = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    undeliveredQty[s.p] = (undeliveredQty[s.p]||0) + s.q;
+  });
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    if (agg.st > 0) stockItems.push({n:name, avail:agg.st, px:agg.px});
+    const avail = agg.st - (undeliveredQty[name]||0);
+    if (agg.st > 0 || avail < 0) stockItems.push({n:name, avail, px:agg.px});
   });
   // Sort by avail descending
   stockItems.sort((a,b) => b.avail - a.avail);
