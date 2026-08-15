@@ -655,10 +655,10 @@ function updateStock(produit, qteChange) {
       const p = d.pr[j];
       if (p.n !== produit) continue;
       if (direction > 0) {
-        // Reduce stock - take what's available
-        const take = Math.min(remaining, p.st||0);
+        // Reduce stock - allow negative (backorder)
+        const take = Math.min(remaining, Math.max(remaining, p.st||0));
         p.v = (p.v||0) + take;
-        p.st = (p.st||0) - take; // allow negative (backorder)
+        p.st = (p.st||0) - take;
         remaining -= take;
       } else {
         // Restore stock - add back
@@ -800,16 +800,13 @@ function renderOverview() {
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // Stock = st (Supabase) minus ongeliwwert Bestellungen
-  // Wann geliwwert → st manuell via SQL upasssen
-  const undeliveredQty = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    undeliveredQty[s.p] = (undeliveredQty[s.p]||0) + s.q;
-  });
+  // Stock = st direkt aus Supabase (= aktuellen Frigo-Bestand)
+  // Geet erof wann nei Commande agetippt gëtt (via addOrder/saveEdit)
+  // Geet erop wann Commande geläscht gëtt (via delOrder)
+  // Metzger-Liwwerung: st gëtt direkt beim Späicheren ugepasst
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const avail = agg.st - (undeliveredQty[name]||0);
-    if (agg.st > 0 || avail < 0) stockItems.push({n:name, avail, px:agg.px});
+    if (agg.st !== 0) stockItems.push({n:name, avail:agg.st, px:agg.px});
   });
   // Sort by avail descending
   stockItems.sort((a,b) => b.avail - a.avail);
@@ -996,8 +993,9 @@ function addOrder() {
     y: yr
   };
   sales.push(newSale);
-  // Update stock if delivered
-  if (isDelivered(newSale) && !isGratis(newSale)) syncStockFromSales();
+  // Stock erof wann nei Commande agetippt gëtt (egal ob geliwwert oder net)
+  if (!isGratis(newSale)) updateStock(p, newSale.q);
+  syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-new');
@@ -1026,6 +1024,11 @@ function saveEdit() {
   const s = sales.find(x => x.i === editingId);
   if (!s) return;
   saveUndo('Bestellung bearbeiten');
+  // Alter Zoustand fir Stock-Diff
+  const oldP = s.p;
+  const oldQ = s.q;
+  const oldGratis = isGratis(s);
+
   s.c = document.getElementById('e-client').value.trim();
   s.p = document.getElementById('e-prod').value.trim();
   s.q = parseInt(document.getElementById('e-qte').value) || 1;
@@ -1037,7 +1040,12 @@ function saveEdit() {
   s.z = (payVal === 'gratuit') ? '' : payVal;
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
-  // Recalculate all stock from scratch - single source of truth
+
+  // Stock Diff: nëmmen Produkt/Quantitéit ännerunge beaflossen de Stock
+  // Liwwerstatus-Ännerungen beaflossen de Stock NET
+  if (!oldGratis) updateStock(oldP, -oldQ); // al Commande zréckginn
+  if (!isGratis(s)) updateStock(s.p, s.q);  // nei Commande ofzéien
+
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -1048,6 +1056,9 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
+  const s = sales.find(x => x.i === editingId);
+  // Stock erop wann Commande geläscht gëtt
+  if (s && !isGratis(s)) updateStock(s.p, -s.q);
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
