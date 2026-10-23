@@ -629,16 +629,15 @@ function updateStock(produit, qteChange) {
 }
 
 function syncStockFromSales() {
-  // Only update rs (reserved) from undelivered sales.
-  // st and v come from Supabase and are only changed by explicit stock operations.
-  // This avoids incorrectly zeroing stock on old deliveries with different product names.
+  // Reset rs to 0 first, then recalculate from all open sales
+  deliveries.forEach(d => { (d.pr||[]).forEach(p => { p.rs = 0; }); });
   const reservedLeft = {};
   sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
     reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
   });
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
-      const reserve = Math.min(p.st + (p.rs||0), reservedLeft[p.n]||0);
+      const reserve = Math.min(p.st, reservedLeft[p.n]||0);
       p.rs = reserve;
       reservedLeft[p.n] = Math.max(0, (reservedLeft[p.n]||0) - reserve);
     });
@@ -747,7 +746,7 @@ function renderOverview() {
     (d.pr||[]).forEach(p => {
       if (!p.n) return;
       if (!stockByName[p.n]) stockByName[p.n] = {st:0, px:p.px||0};
-      stockByName[p.n].st += Math.max(0, (p.st||0) - (p.rs||0));
+      stockByName[p.n].st += (p.st||0);
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
@@ -933,6 +932,7 @@ function addOrder() {
     _new: true
   };
   sales.push(newSale);
+  if (!isGratis(newSale)) updateStock(p, newSale.q);
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -984,6 +984,8 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
+  const sd = sales.find(x => x.i === editingId);
+  if (sd && !isGratis(sd)) updateStock(sd.p, -sd.q);
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
