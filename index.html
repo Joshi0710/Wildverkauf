@@ -475,8 +475,9 @@ async function loadFromDB() {
       sales = sd.map(s => ({i:s.id,c:s.c,q:s.q,e:s.e||'',p:s.p,x:s.x,t:s.t,l:s.l||'',z:s.z||'',g:s.g||'',r:s.r||'',y:s.y||2026}));
     }
     if (dd && dd.length > 0) {
-      deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,pr:typeof d.products==='string'?JSON.parse(d.products):(d.products||[])}));
+      deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,pr:(typeof d.products==='string'?JSON.parse(d.products):(d.products||[])).map(p=>({...p,st:Math.max(0,(p.q||0)-(p.v||0)),rs:0}))}));
     }
+    allDataLoaded = true;
   } catch(e) { console.log('DB load failed, using builtin:', e.message); }
   hideLoader();
   renderAll();
@@ -740,27 +741,25 @@ function renderOverview() {
       '</tbody></table></div>';
   }
 
-  // Stock: aggregate by product name, show st-rs (free stock, can be negative)
+  // Stock: aggregate st by product name
   const stockByName = {};
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
       if (!p.n) return;
-      if (!stockByName[p.n]) stockByName[p.n] = {st:0, rs:0, px:p.px||0};
+      if (!stockByName[p.n]) stockByName[p.n] = {st:0, px:p.px||0};
       stockByName[p.n].st += (p.st||0);
-      stockByName[p.n].rs += (p.rs||0);
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  const stockItems = Object.entries(stockByName).filter(([n,a]) => a.st > 0).map(([n, a]) => ({n, avail: a.st, px: a.px}));
-  stockItems.sort((a,b) => b.avail - a.avail);
+  const stockItems = Object.entries(stockByName).filter(([n,a])=>a.st>0).map(([n,a])=>({n,st:a.st,px:a.px}));
+  stockItems.sort((a,b)=>b.st-a.st);
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
     sl.innerHTML = '<div class="card"><div class="empty">Kein Lagerbestand</div></div>';
   } else {
-    sl.innerHTML = '<div class="card">'+stockItems.map(p => {
-      const color = p.avail < 0 ? '#c0392b' : '#4a7c2f';
-      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+'</div>'+(p.px?'<div class="row-sub">'+fmt(p.px)+'/Pkg</div>':'')+'</div><div class="row-r"><div class="row-amt r" style="font-size:18px;color:'+color+'">'+p.avail+'</div><div style="font-size:11px;color:#6b5d4a">verfügbar</div></div></div>';
-    }).join('')+'</div>';
+    sl.innerHTML = '<div class="card">'+stockItems.map(p =>
+      '<div class="row"><div class="row-l"><div class="row-name">'+p.n+'</div>'+(p.px?'<div class="row-sub">'+fmt(p.px)+'/Pkg</div>':'')+'</div><div class="row-r"><div class="row-amt" style="font-size:18px">'+p.st+'</div><div style="font-size:11px;color:#6b5d4a">auf Lager</div></div></div>'
+    ).join('')+'</div>';
   }
 }
 
@@ -933,9 +932,8 @@ function addOrder() {
     y: yr
   };
   sales.push(newSale);
-  // Decrease stock for all non-gratis orders
-  if (!isGratis(newSale)) updateStock(p, newSale.q);
-  syncStockFromSales();
+  // Update stock if delivered
+  if (isDelivered(newSale) && !isGratis(newSale)) syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-new');
@@ -964,7 +962,6 @@ function saveEdit() {
   const s = sales.find(x => x.i === editingId);
   if (!s) return;
   saveUndo('Bestellung bearbeiten');
-  const oldP = s.p, oldQ = s.q, oldGratis = isGratis(s);
   s.c = document.getElementById('e-client').value.trim();
   s.p = document.getElementById('e-prod').value.trim();
   s.q = parseInt(document.getElementById('e-qte').value) || 1;
@@ -976,9 +973,7 @@ function saveEdit() {
   s.z = (payVal === 'gratuit') ? '' : payVal;
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
-  // Reverse old stock effect, apply new stock effect
-  if (!oldGratis) updateStock(oldP, -oldQ);
-  if (!isGratis(s)) updateStock(s.p, s.q);
+  // Recalculate all stock from scratch - single source of truth
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -989,8 +984,6 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
-  const s = sales.find(x => x.i === editingId);
-  if (s && !isGratis(s)) updateStock(s.p, -s.q);
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
