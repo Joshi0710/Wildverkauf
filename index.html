@@ -932,8 +932,9 @@ function addOrder() {
     y: yr
   };
   sales.push(newSale);
-  // Update stock if delivered
-  if (isDelivered(newSale) && !isGratis(newSale)) syncStockFromSales();
+  // Decrease stock for all non-gratis orders
+  if (!isGratis(newSale)) updateStock(p, newSale.q);
+  syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-new');
@@ -984,6 +985,8 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
+  const sd = sales.find(x => x.i === editingId);
+  if (sd && !isGratis(sd)) updateStock(sd.p, -sd.q);
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
