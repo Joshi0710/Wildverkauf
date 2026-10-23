@@ -740,16 +740,26 @@ function renderOverview() {
       '</tbody></table></div>';
   }
 
-  // Stock
-  const stockItems = [];
-  deliveries.forEach(d => { d.pr && d.pr.forEach(p => { if (p.st>0) stockItems.push({...p, lid:d.id, ldt:d.dt}); }); });
+  // Stock: aggregate by product name, show st-rs (free stock, can be negative)
+  const stockByName = {};
+  deliveries.forEach(d => {
+    (d.pr||[]).forEach(p => {
+      if (!p.n) return;
+      if (!stockByName[p.n]) stockByName[p.n] = {st:0, rs:0, px:p.px||0};
+      stockByName[p.n].st += (p.st||0);
+      stockByName[p.n].rs += (p.rs||0);
+      if (p.px) stockByName[p.n].px = p.px;
+    });
+  });
+  const stockItems = Object.entries(stockByName).filter(([n,a]) => a.st > 0).map(([n, a]) => ({n, avail: a.st, px: a.px}));
+  stockItems.sort((a,b) => b.avail - a.avail);
   const sl = document.getElementById('stock-list');
   if (!stockItems.length) {
     sl.innerHTML = '<div class="card"><div class="empty">Kein Lagerbestand</div></div>';
   } else {
     sl.innerHTML = '<div class="card">'+stockItems.map(p => {
-      const pct = p.q>0?Math.round((p.v/p.q)*100):100;
-      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+' <span style="color:#6b5d4a;font-weight:400">('+p.pc+')</span></div><div class="row-sub">'+p.lid+(p.ldt?' · '+p.ldt:'')+(p.px?' · '+fmt(p.px)+'/Pkg':'')+'</div><div class="sbar" style="width:80px;margin-top:5px"><div class="sfill" style="width:'+pct+'%;background:#4a7c2f"></div></div></div><div class="row-r"><div class="row-amt r" style="font-size:18px">'+p.st+'</div><div style="font-size:11px;color:#6b5d4a">auf Lager</div>'+(p.rs>0?'<div style="font-size:11px;color:#b8690a">'+p.rs+' reserviert</div>':'')+'</div></div>';
+      const color = p.avail < 0 ? '#c0392b' : '#4a7c2f';
+      return '<div class="row"><div class="row-l"><div class="row-name">'+p.n+'</div>'+(p.px?'<div class="row-sub">'+fmt(p.px)+'/Pkg</div>':'')+'</div><div class="row-r"><div class="row-amt r" style="font-size:18px;color:'+color+'">'+p.avail+'</div><div style="font-size:11px;color:#6b5d4a">verfügbar</div></div></div>';
     }).join('')+'</div>';
   }
 }
