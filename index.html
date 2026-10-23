@@ -796,8 +796,9 @@ function renderOverview() {
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
       if (!p.n) return;
-      if (!stockByName[p.n]) stockByName[p.n] = {st:0, px:p.px||0};
+      if (!stockByName[p.n]) stockByName[p.n] = {st:0, rs:0, px:p.px||0};
       stockByName[p.n].st += (p.st||0);
+      stockByName[p.n].rs += (p.rs||0);
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
@@ -806,7 +807,8 @@ function renderOverview() {
   // st is recalculated locally as q-v, never stored in Supabase
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    if (agg.st > 0 || agg.st < 0) stockItems.push({n:name, avail:agg.st, px:agg.px});
+    const avail = agg.st - agg.rs;
+    if (avail !== 0) stockItems.push({n:name, avail:avail, px:agg.px});
   });
   // Sort by avail descending
   stockItems.sort((a,b) => b.avail - a.avail);
