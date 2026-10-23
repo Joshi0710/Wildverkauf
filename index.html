@@ -747,7 +747,7 @@ function renderOverview() {
     (d.pr||[]).forEach(p => {
       if (!p.n) return;
       if (!stockByName[p.n]) stockByName[p.n] = {st:0, px:p.px||0};
-      stockByName[p.n].st += (p.st||0);
+      stockByName[p.n].st += Math.max(0, (p.st||0) - (p.rs||0));
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
@@ -929,11 +929,10 @@ function addOrder() {
     l: livVal, z: (payVal === 'gratuit' ? '' : payVal),
     g: document.getElementById('n-gib').value,
     r: document.getElementById('n-rem').value.trim(),
-    y: yr
+    y: yr,
+    _new: true
   };
   sales.push(newSale);
-  // Decrease stock for all non-gratis orders
-  if (!isGratis(newSale)) updateStock(p, newSale.q);
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -985,8 +984,6 @@ function saveEdit() {
 function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
-  const sd = sales.find(x => x.i === editingId);
-  if (sd && !isGratis(sd)) updateStock(sd.p, -sd.q);
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
