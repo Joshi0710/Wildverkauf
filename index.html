@@ -1042,17 +1042,30 @@ function saveEdit() {
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
 
-  // Wann Reservatioun vu "oppen" op "geliwert" oder "gratis" wiesselt:
-  // updateStock erhéicht v → st geet erof
-  // syncStockFromSales reduzéiert rs
-  // → avail = st - rs bleift gläich ✓
   const nowDelivered = isDelivered(s);
   const nowGratis = isGratis(s);
+
+  // DEBUG: collect st/v/q before
+  const getProdData = (name) => {
+    let st=0,v=0,q=0,rs=0;
+    deliveries.forEach(d=>(d.pr||[]).forEach(p=>{ if(p.n===name){st+=(p.st||0);v+=(p.v||0);q+=(p.q||0);rs+=(p.rs||0);} }));
+    return {st,v,q,rs,avail:st-rs};
+  };
+  const before = getProdData(s.p);
+
   if ((!oldDelivered && !oldGratis) && (nowDelivered || nowGratis)) {
     updateStock(s.p, s.q);
   }
+  const afterUpdate = getProdData(s.p);
 
   syncStockFromSales();
+  const afterSync = getProdData(s.p);
+
+  alert('PRODUKT: ' + s.p + ' (q='+s.q+')\n\n'
+    + 'VIRDRUN:  st='+before.st+' v='+before.v+' rs='+before.rs+' → avail='+before.avail+'\n'
+    + 'no Update: st='+afterUpdate.st+' v='+afterUpdate.v+'\n'
+    + 'no Sync:  st='+afterSync.st+' rs='+afterSync.rs+' → avail='+afterSync.avail+'\n\n'
+    + 'oldDelivered='+oldDelivered+' nowDelivered='+nowDelivered);
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-edit');
