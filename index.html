@@ -646,31 +646,49 @@ function currentSeason() {
 
 function getCursor(){return editMode?"pointer":"default";}
 function updateStock(produit, qteChange) {
-  // Change v (sold) across deliveries → st = q - v is recalculated automatically
-  if (qteChange === 0) return;
+  // Ännert v (verkaaft) an de Pools vun dësem Produit. st = q - v.
+  // WICHTEG: Verkaf gëtt fir d'éischt op Pools gebucht déi nach Stock hunn (st>0),
+  // soss géif v op engem eidele Pool wuessen (st bleift 0), d'Reservatioun fält ewech
+  // an de Lagerbestand géing faalsch erop.
+  if (!qteChange) return;
+  const pools = [];
+  deliveries.forEach(d => (d.pr||[]).forEach(p => { if (p.n === produit) pools.push(p); }));
+  if (!pools.length) return;
   let remaining = Math.abs(qteChange);
-  const direction = qteChange > 0 ? 1 : -1; // positive = sell (v up, st down), negative = restore (v down, st up)
-  for (let i = deliveries.length-1; i >= 0 && remaining > 0; i--) {
-    const d = deliveries[i];
-    for (let j = 0; j < (d.pr||[]).length; j++) {
-      const p = d.pr[j];
-      if (p.n !== produit) continue;
-      if (direction > 0) {
-        // Sell: increase v, allow going beyond q (backorder)
-        const take = remaining; // take all remaining from this pool
-        p.v = (p.v||0) + take;
-        p.st = Math.max(0, (p.q||0) - p.v); // recalc st
-        remaining = 0;
-      } else {
-        // Restore: decrease v, min 0
-        const restore = Math.min(remaining, (p.v||0));
-        p.v = Math.max(0, (p.v||0) - restore);
-        p.st = Math.max(0, (p.q||0) - p.v); // recalc st
-        remaining -= restore;
-      }
-      if (remaining <= 0) return;
+  if (qteChange > 0) {
+    // 1) Pools mat fräiem Stock opfëllen
+    for (const p of pools) {
+      const free = (p.q||0) - (p.v||0);
+      if (free <= 0) continue;
+      const take = Math.min(free, remaining);
+      p.v = (p.v||0) + take;
+      remaining -= take;
+      if (remaining <= 0) break;
+    }
+    // 2) Rescht = Iwwerverkaf, op de leschte Pool
+    if (remaining > 0) {
+      const last = pools[pools.length-1];
+      last.v = (last.v||0) + remaining;
+    }
+  } else {
+    // 1) Fir d'éischt Iwwerverkaf (v > q) zréckhuelen – dat ännert de Stock net
+    for (const p of pools.slice().reverse()) {
+      const over = (p.v||0) - (p.q||0);
+      if (over <= 0) continue;
+      const back = Math.min(over, remaining);
+      p.v -= back;
+      remaining -= back;
+      if (remaining <= 0) break;
+    }
+    // 2) Dann normal v erof
+    for (const p of pools.slice().reverse()) {
+      if (remaining <= 0) break;
+      const back = Math.min(p.v||0, remaining);
+      p.v = (p.v||0) - back;
+      remaining -= back;
     }
   }
+  pools.forEach(p => { p.st = Math.max(0, (p.q||0) - (p.v||0)); });
 }
 
 function syncStockFromSales() {
@@ -1051,14 +1069,9 @@ function saveEdit() {
   // Wann Bestellung vun OPEN op GELIEFERT/GRATIS geet:
   // v eropsetzen (= als geliefert markéieren an de Pool),
   // sou datt st = q - v korrekt kleng bleift.
-  if (wasOpen && !isNowOpen) {
-    updateStock(s.p, s.q);
-  }
-  // Wann Bestellung vun GELIEFERT/GRATIS op OPEN geet:
-  // v erëm erof (= Lieferung réckgängeg maachen).
-  if (!wasOpen && isNowOpen) {
-    updateStock(s.p, -s.q);
-  }
+  // Alen Zoustand ausbuchen, neien abuchen (deckt och Ännerung vu Produit/Quantitéit of)
+  if (!wasOpen) updateStock(oldP, -oldQ);
+  if (!isNowOpen) updateStock(s.p, s.q);
 
   syncStockFromSales();
   hasUnsavedChanges = true;
