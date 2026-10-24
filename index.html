@@ -512,12 +512,13 @@ async function loadFromDB() {
     if (Array.isArray(dd)) {
       deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,
         pr:(typeof d.products==='string'?JSON.parse(d.products):(d.products||[])).map(p => ({
-          ...p,
-          st: Math.max(0, (p.q||0) - (p.v||0)), // always recalculate st = q - v
-          rs: 0
+          n: p.n, q: p.q||0, px: p.px||0,
+          st: p.q||0  // st = total vum Metzler, gëtt dann vun offene Reservatioune reduzéiert
         }))}));
     }
-    allDataLoaded = true; // Safe to DELETE: all data from Supabase confirmed loaded
+    allDataLoaded = true;
+    // st reduzéieren fir all offen (net geliwert, net gratis) Reservatioune
+    recalcStock();
   } catch(e) {
     allDataLoaded = false;
     console.log('DB load failed, using builtin:', e.message);
@@ -673,29 +674,23 @@ function updateStock(produit, qteChange) {
   }
 }
 
-function syncStockFromSales() {
-  // Recalculate rs (reserved) from undelivered sales.
-  // Only assign rs to pools that still have st>0, newest delivery first.
-  const reservedLeft = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
-  });
-  // Reset all rs to 0 first
-  deliveries.forEach(d => { (d.pr||[]).forEach(p => { p.rs = 0; }); });
-  // Distribute reserved qty to pools with st>0, newest delivery first
-  const sorted = deliveries.slice().reverse();
-  sorted.forEach(d => {
-    (d.pr||[]).forEach(p => {
-      // Benotze q - v als Pool-Gréisst (net p.st, well dat scho rs enthale kann)
-      const poolSize = Math.max(0, (p.q||0) - (p.v||0));
-      if (poolSize > 0 && (reservedLeft[p.n]||0) > 0) {
-        const reserve = Math.min(poolSize, reservedLeft[p.n]);
-        p.rs = reserve;
-        reservedLeft[p.n] -= reserve;
+function recalcStock() {
+  // st = q (Metzler) minus ALL Reservatioune (offen + geliwert, net gratis)
+  // Geliwert setzen ännert näischt well geliwert+offen zesummen gläich bleift
+  deliveries.forEach(d => { (d.pr||[]).forEach(p => { p.st = p.q||0; }); });
+  sales.filter(s => !isGratis(s)).forEach(s => {
+    let remaining = s.q;
+    for (let i = deliveries.length-1; i >= 0 && remaining > 0; i--) {
+      for (const p of (deliveries[i].pr||[])) {
+        if (p.n !== s.p || remaining <= 0) continue;
+        const take = Math.min(p.st, remaining);
+        p.st -= take;
+        remaining -= take;
       }
-    });
+    }
   });
 }
+function syncStockFromSales() { recalcStock(); }
 
 function toggleNewMode() {
   const mode = document.getElementById('n-mode').value;
@@ -798,9 +793,8 @@ function renderOverview() {
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
       if (!p.n) return;
-      if (!stockByName[p.n]) stockByName[p.n] = {st:0, rs:0, px:p.px||0};
+      if (!stockByName[p.n]) stockByName[p.n] = {st:0, px:p.px||0};
       stockByName[p.n].st += (p.st||0);
-      stockByName[p.n].rs += (p.rs||0);
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
@@ -1044,7 +1038,7 @@ function saveEdit() {
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
 
-  syncStockFromSales();
+  recalcStock();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-edit');
