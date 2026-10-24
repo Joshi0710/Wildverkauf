@@ -1028,7 +1028,7 @@ function saveEdit() {
   const oldP = s.p;
   const oldQ = s.q;
   const oldGratis = isGratis(s);
-  const oldDelivered = isDelivered(s);
+  const oldDelivered = isDelivered(s); // virum Update späicheren
 
   s.c = document.getElementById('e-client').value.trim();
   s.p = document.getElementById('e-prod').value.trim();
@@ -1042,13 +1042,11 @@ function saveEdit() {
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
 
-  // Wann Commande op "geliwert" gesat gëtt: Stock permanent reduzéieren
-  // (Wueren sinn physesch fort → v eropsetzen, st erofsetzen)
+  // Wann Commande gëtt geliwert: v eropsetzen → st erof
+  // syncStockFromSales setzt dann rs=0 fir déi Commande → avail bleift gläich
   if (!oldDelivered && isDelivered(s) && !isGratis(s)) {
     updateStock(s.p, s.q);
   }
-  // Wann Produkt oder Quantitéit geännert an béid Zoustänn waren NET geliwert
-  // keng extra updateStock néideg — syncStockFromSales regelt alles iwwer rs
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -1060,8 +1058,6 @@ function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
   const s = sales.find(x => x.i === editingId);
-  // Stock erop wann Commande geläscht gëtt
-
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
