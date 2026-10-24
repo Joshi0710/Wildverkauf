@@ -678,10 +678,12 @@ function recalcStock() {
   // st = q (Metzler total) minus ALL Sales (offen + geliwert, net gratis) - joer-onofhängeg
   // Reset st = q fir all Deliveries
   deliveries.forEach(d => { (d.pr||[]).forEach(p => { p.st = p.q||0; }); });
-  // Ofzéien: all Sales iwwer all Joer
-  sales.filter(s => !isGratis(s)).forEach(s => {
+  // ALL Sales ofzéien (offen + geliwert, net gratis) — nëmmen aus Joer mat Deliveries
+  const yearsWithDeliveries = new Set(deliveries.map(d => d.y||2026));
+  sales.filter(s => !isGratis(s) && yearsWithDeliveries.has(s.y||2026)).forEach(s => {
     let remaining = s.q;
     for (let i = deliveries.length-1; i >= 0 && remaining > 0; i--) {
+      if ((deliveries[i].y||2026) !== (s.y||2026)) continue;
       for (const p of (deliveries[i].pr||[])) {
         if (p.n !== s.p || remaining <= 0) continue;
         const take = Math.min(p.st, remaining);
