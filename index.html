@@ -676,11 +676,15 @@ function updateStock(produit, qteChange) {
 
 function recalcStock() {
   // st = q (Metzler) minus ALL Reservatioune (offen + geliwert, net gratis)
-  // Geliwert setzen ännert näischt well geliwert+offen zesummen gläich bleift
-  deliveriesForYear().forEach(d => { (d.pr||[]).forEach(p => { p.st = p.q||0; }); });
-  salesForYear().filter(s => !isGratis(s)).forEach(s => {
+  // Benotze nëmmen dat aktuellt Joer (net 'all')
+  const yr = (currentYear === 'all') ? Math.max(...deliveries.map(d => d.y||2026)) : currentYear;
+  const dfy = deliveries.filter(d => (d.y||2026) === yr);
+  const sfy = sales.filter(s => (s.y||2026) === yr);
+  // Reset st = q
+  dfy.forEach(d => { (d.pr||[]).forEach(p => { p.st = p.q||0; }); });
+  // Ofzéien: all Sales (offen + geliwert, net gratis)
+  sfy.filter(s => !isGratis(s)).forEach(s => {
     let remaining = s.q;
-    const dfy = deliveriesForYear();
     for (let i = dfy.length-1; i >= 0 && remaining > 0; i--) {
       for (const p of (dfy[i].pr||[])) {
         if (p.n !== s.p || remaining <= 0) continue;
