@@ -677,7 +677,7 @@ function syncStockFromSales() {
   // Recalculate rs (reserved) from undelivered sales.
   // Only assign rs to pools that still have st>0, newest delivery first.
   const reservedLeft = {};
-  sales.filter(s => !isGratis(s)).forEach(s => {
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
     reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
   });
   // Reset all rs to 0 first
@@ -809,7 +809,7 @@ function renderOverview() {
   // st is recalculated locally as q-v, never stored in Supabase
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const avail = agg.st - agg.rs;
+    const avail = agg.st;
     if (avail !== 0) stockItems.push({n:name, avail:avail, px:agg.px});
   });
   // Sort by avail descending
