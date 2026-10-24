@@ -802,23 +802,12 @@ function renderOverview() {
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // avail = st - rs - delivered/gratis qty
-  // st = q - v (from Supabase, v reflects only explicit updateStock calls)
-  // rs = open reservations only
-  // delivered+gratis reservations reduced rs but v was not updated → subtract separately
-  const doneQty = {};
-  sales.filter(s => isDelivered(s) || isGratis(s)).forEach(s => {
-    doneQty[s.p] = (doneQty[s.p]||0) + s.q;
-  });
-  const openQty = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
-    openQty[s.p] = (openQty[s.p]||0) + s.q;
-  });
-  // Total sold = v (from Supabase). If v >= doneQty+openQty, all accounted for.
-  // But v may be inconsistent. Use: avail = st - openQty (open reservations cap what's free)
+  // Stock = sum of (q - v) across all deliveries per product
+  // q = total from Metzger, v = sold to clients
+  // st is recalculated locally as q-v, never stored in Supabase
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const avail = agg.st - (openQty[name]||0);
+    const avail = agg.st - agg.rs;
     if (avail !== 0) stockItems.push({n:name, avail:avail, px:agg.px});
   });
   // Sort by avail descending
@@ -1006,6 +995,10 @@ function addOrder() {
     y: yr
   };
   sales.push(newSale);
+  // Wann nei Bestellung direkt als geliefert/gratis aginn → v eropsetzen
+  if (isDelivered(newSale) || isGratis(newSale)) {
+    updateStock(newSale.p, newSale.q);
+  }
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -1035,11 +1028,11 @@ function saveEdit() {
   const s = sales.find(x => x.i === editingId);
   if (!s) return;
   saveUndo('Bestellung bearbeiten');
-  // Alter Zoustand fir Stock-Diff
+
+  // Alter Zoustand festhalten BEFOR Ännerungen
   const oldP = s.p;
   const oldQ = s.q;
-  const oldGratis = isGratis(s);
-  const oldDelivered = isDelivered(s);
+  const wasOpen = !isDelivered(s) && !isGratis(s);
 
   s.c = document.getElementById('e-client').value.trim();
   s.p = document.getElementById('e-prod').value.trim();
@@ -1050,9 +1043,24 @@ function saveEdit() {
   s.l = document.getElementById('e-liv').value;
   const payVal = document.getElementById('e-pay').value;
   s.z = (payVal === 'gratuit') ? '' : payVal;
-  if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
+  if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
 
+  const isNowOpen = !isDelivered(s) && !isGratis(s);
+
+  // Wann Bestellung vun OPEN op GELIEFERT/GRATIS geet:
+  // v eropsetzen (= als geliefert markéieren an de Pool),
+  // sou datt st = q - v korrekt kleng bleift.
+  if (wasOpen && !isNowOpen) {
+    updateStock(s.p, s.q);
+  }
+  // Wann Bestellung vun GELIEFERT/GRATIS op OPEN geet:
+  // v erëm erof (= Lieferung réckgängeg maachen).
+  if (!wasOpen && isNowOpen) {
+    updateStock(s.p, -s.q);
+  }
+
+  syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-edit');
@@ -1063,8 +1071,13 @@ function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
   const s = sales.find(x => x.i === editingId);
-  // Stock erop wann Commande geläscht gëtt
-
+  if (s) {
+    // Wann eng geliwert/gratis Bestellung geläscht gëtt:
+    // v erof (Pool erëm fräisetzen)
+    if (isDelivered(s) || isGratis(s)) {
+      updateStock(s.p, -s.q);
+    }
+  }
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
