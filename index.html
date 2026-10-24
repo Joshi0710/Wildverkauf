@@ -677,7 +677,7 @@ function syncStockFromSales() {
   // Recalculate rs (reserved) from undelivered sales.
   // Only assign rs to pools that still have st>0, newest delivery first.
   const reservedLeft = {};
-  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+  sales.filter(s => !isGratis(s)).forEach(s => {
     reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
   });
   // Reset all rs to 0 first
@@ -1044,11 +1044,6 @@ function saveEdit() {
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
 
-  // Wann Commande gëtt geliwert: v eropsetzen → st erof
-  // syncStockFromSales setzt dann rs=0 fir déi Commande → avail bleift gläich
-  if (!oldDelivered && isDelivered(s) && !isGratis(s)) {
-    updateStock(s.p, s.q);
-  }
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
