@@ -512,13 +512,12 @@ async function loadFromDB() {
     if (Array.isArray(dd)) {
       deliveries = dd.map(d => ({id:d.id,dt:d.dt||'',kg:d.kg||'',m:d.m,rc:d.rc,bn:d.bn,y:d.y||2026,
         pr:(typeof d.products==='string'?JSON.parse(d.products):(d.products||[])).map(p => ({
-          n: p.n, q: p.q||0, px: p.px||0,
-          st: p.q||0  // st = total vum Metzler, gëtt dann vun offene Reservatioune reduzéiert
+          ...p,
+          st: Math.max(0, (p.q||0) - (p.v||0)), // always recalculate st = q - v
+          rs: 0
         }))}));
     }
-    allDataLoaded = true;
-    // st reduzéieren fir all offen (net geliwert, net gratis) Reservatioune
-    recalcStock();
+    allDataLoaded = true; // Safe to DELETE: all data from Supabase confirmed loaded
   } catch(e) {
     allDataLoaded = false;
     console.log('DB load failed, using builtin:', e.message);
@@ -674,26 +673,27 @@ function updateStock(produit, qteChange) {
   }
 }
 
-function recalcStock() {
-  // st = q (Metzler total) minus ALL Sales (offen + geliwert, net gratis) - joer-onofhängeg
-  // Reset st = q fir all Deliveries
-  deliveries.forEach(d => { (d.pr||[]).forEach(p => { p.st = p.q||0; }); });
-  // ALL Sales ofzéien (offen + geliwert, net gratis) — nëmmen aus Joer mat Deliveries
-  const yearsWithDeliveries = new Set(deliveries.map(d => d.y||2026));
-  sales.filter(s => !isGratis(s) && yearsWithDeliveries.has(s.y||2026)).forEach(s => {
-    let remaining = s.q;
-    for (let i = deliveries.length-1; i >= 0 && remaining > 0; i--) {
-      if ((deliveries[i].y||2026) !== (s.y||2026)) continue;
-      for (const p of (deliveries[i].pr||[])) {
-        if (p.n !== s.p || remaining <= 0) continue;
-        const take = Math.min(p.st, remaining);
-        p.st -= take;
-        remaining -= take;
+function syncStockFromSales() {
+  // Recalculate rs (reserved) from undelivered sales.
+  // Only assign rs to pools that still have st>0, newest delivery first.
+  const reservedLeft = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    reservedLeft[s.p] = (reservedLeft[s.p]||0) + s.q;
+  });
+  // Reset all rs to 0 first
+  deliveries.forEach(d => { (d.pr||[]).forEach(p => { p.rs = 0; }); });
+  // Distribute reserved qty to pools with st>0, newest delivery first
+  const sorted = deliveries.slice().reverse();
+  sorted.forEach(d => {
+    (d.pr||[]).forEach(p => {
+      if ((p.st||0) > 0 && (reservedLeft[p.n]||0) > 0) {
+        const reserve = Math.min(p.st, reservedLeft[p.n]);
+        p.rs = reserve;
+        reservedLeft[p.n] -= reserve;
       }
-    }
+    });
   });
 }
-function syncStockFromSales() { recalcStock(); }
 
 function toggleNewMode() {
   const mode = document.getElementById('n-mode').value;
@@ -796,8 +796,9 @@ function renderOverview() {
   deliveries.forEach(d => {
     (d.pr||[]).forEach(p => {
       if (!p.n) return;
-      if (!stockByName[p.n]) stockByName[p.n] = {st:0, px:p.px||0};
+      if (!stockByName[p.n]) stockByName[p.n] = {st:0, rs:0, px:p.px||0};
       stockByName[p.n].st += (p.st||0);
+      stockByName[p.n].rs += (p.rs||0);
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
@@ -806,7 +807,7 @@ function renderOverview() {
   // st is recalculated locally as q-v, never stored in Supabase
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const avail = agg.st;
+    const avail = agg.st - agg.rs;
     if (avail !== 0) stockItems.push({n:name, avail:avail, px:agg.px});
   });
   // Sort by avail descending
@@ -1027,7 +1028,6 @@ function saveEdit() {
   const oldP = s.p;
   const oldQ = s.q;
   const oldGratis = isGratis(s);
-  const oldDelivered = isDelivered(s); // virum Update späicheren
 
   s.c = document.getElementById('e-client').value.trim();
   s.p = document.getElementById('e-prod').value.trim();
@@ -1041,7 +1041,9 @@ function saveEdit() {
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
 
-  recalcStock();
+  // Stock Diff: nëmmen Produkt/Quantitéit ännerunge beaflossen de Stock
+  // Liwwerstatus-Ännerungen beaflossen de Stock NET
+  syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-edit');
@@ -1052,6 +1054,8 @@ function delOrder() {
   if(!confirm('Bestellung wirklich löschen?'))return;
   saveUndo('Bestellung löschen');
   const s = sales.find(x => x.i === editingId);
+  // Stock erop wann Commande geläscht gëtt
+
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
