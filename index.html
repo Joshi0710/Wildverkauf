@@ -686,8 +686,10 @@ function syncStockFromSales() {
   const sorted = deliveries.slice().reverse();
   sorted.forEach(d => {
     (d.pr||[]).forEach(p => {
-      if ((p.st||0) > 0 && (reservedLeft[p.n]||0) > 0) {
-        const reserve = Math.min(p.st, reservedLeft[p.n]);
+      // Benotze q - v als Pool-Gréisst (net p.st, well dat scho rs enthale kann)
+      const poolSize = Math.max(0, (p.q||0) - (p.v||0));
+      if (poolSize > 0 && (reservedLeft[p.n]||0) > 0) {
+        const reserve = Math.min(poolSize, reservedLeft[p.n]);
         p.rs = reserve;
         reservedLeft[p.n] -= reserve;
       }
