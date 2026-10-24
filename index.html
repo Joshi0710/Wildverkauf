@@ -995,8 +995,6 @@ function addOrder() {
     y: yr
   };
   sales.push(newSale);
-  // Stock erof wann nei Commande agetippt gëtt (egal ob geliwwert oder net)
-  if (!isGratis(newSale)) updateStock(p, newSale.q);
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -1045,9 +1043,6 @@ function saveEdit() {
 
   // Stock Diff: nëmmen Produkt/Quantitéit ännerunge beaflossen de Stock
   // Liwwerstatus-Ännerungen beaflossen de Stock NET
-  if (!oldGratis) updateStock(oldP, -oldQ); // al Commande zréckginn
-  if (!isGratis(s)) updateStock(s.p, s.q);  // nei Commande ofzéien
-
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
@@ -1060,7 +1055,7 @@ function delOrder() {
   saveUndo('Bestellung löschen');
   const s = sales.find(x => x.i === editingId);
   // Stock erop wann Commande geläscht gëtt
-  if (s && !isGratis(s)) updateStock(s.p, -s.q);
+
   sales = sales.filter(s => s.i !== editingId);
   syncStockFromSales();
   hasUnsavedChanges = true; updateSaveBtn();
