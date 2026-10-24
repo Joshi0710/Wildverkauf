@@ -1028,6 +1028,7 @@ function saveEdit() {
   const oldP = s.p;
   const oldQ = s.q;
   const oldGratis = isGratis(s);
+  const oldDelivered = isDelivered(s);
 
   s.c = document.getElementById('e-client').value.trim();
   s.p = document.getElementById('e-prod').value.trim();
@@ -1041,8 +1042,15 @@ function saveEdit() {
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
 
-  // Stock Diff: nëmmen Produkt/Quantitéit ännerunge beaflossen de Stock
-  // Liwwerstatus-Ännerungen beaflossen de Stock NET
+  // Wann eng Reservatioun geliwert oder gratis gëtt:
+  // syncStockFromSales() reduzéiert rs → avail géif eropgoen (falsch)
+  // Fix: updateStock reduzéiert st proportional → avail bleift gläich
+  const nowDelivered = isDelivered(s);
+  const nowGratis = isGratis(s);
+  if ((!oldDelivered && !oldGratis) && (nowDelivered || nowGratis)) {
+    updateStock(s.p, s.q);
+  }
+
   syncStockFromSales();
   hasUnsavedChanges = true;
   updateSaveBtn();
