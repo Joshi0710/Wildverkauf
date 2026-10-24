@@ -802,12 +802,23 @@ function renderOverview() {
       if (p.px) stockByName[p.n].px = p.px;
     });
   });
-  // Stock = sum of (q - v) across all deliveries per product
-  // q = total from Metzger, v = sold to clients
-  // st is recalculated locally as q-v, never stored in Supabase
+  // avail = st - rs - delivered/gratis qty
+  // st = q - v (from Supabase, v reflects only explicit updateStock calls)
+  // rs = open reservations only
+  // delivered+gratis reservations reduced rs but v was not updated → subtract separately
+  const doneQty = {};
+  sales.filter(s => isDelivered(s) || isGratis(s)).forEach(s => {
+    doneQty[s.p] = (doneQty[s.p]||0) + s.q;
+  });
+  const openQty = {};
+  sales.filter(s => !isDelivered(s) && !isGratis(s)).forEach(s => {
+    openQty[s.p] = (openQty[s.p]||0) + s.q;
+  });
+  // Total sold = v (from Supabase). If v >= doneQty+openQty, all accounted for.
+  // But v may be inconsistent. Use: avail = st - openQty (open reservations cap what's free)
   const stockItems = [];
   Object.entries(stockByName).forEach(([name, agg]) => {
-    const avail = agg.st - agg.rs;
+    const avail = agg.st - (openQty[name]||0);
     if (avail !== 0) stockItems.push({n:name, avail:avail, px:agg.px});
   });
   // Sort by avail descending
@@ -1042,30 +1053,6 @@ function saveEdit() {
   if (payVal === 'gratuit') { s.l = 'OK'; if (!s.r) s.r = 'gratuit'; }
   s.r = document.getElementById('e-rem').value.trim();
 
-  const nowDelivered = isDelivered(s);
-  const nowGratis = isGratis(s);
-
-  // DEBUG: collect st/v/q before
-  const getProdData = (name) => {
-    let st=0,v=0,q=0,rs=0;
-    deliveries.forEach(d=>(d.pr||[]).forEach(p=>{ if(p.n===name){st+=(p.st||0);v+=(p.v||0);q+=(p.q||0);rs+=(p.rs||0);} }));
-    return {st,v,q,rs,avail:st-rs};
-  };
-  const before = getProdData(s.p);
-
-  if ((!oldDelivered && !oldGratis) && (nowDelivered || nowGratis)) {
-    updateStock(s.p, s.q);
-  }
-  const afterUpdate = getProdData(s.p);
-
-  syncStockFromSales();
-  const afterSync = getProdData(s.p);
-
-  alert('PRODUKT: ' + s.p + ' (q='+s.q+')\n\n'
-    + 'VIRDRUN:  st='+before.st+' v='+before.v+' rs='+before.rs+' → avail='+before.avail+'\n'
-    + 'no Update: st='+afterUpdate.st+' v='+afterUpdate.v+'\n'
-    + 'no Sync:  st='+afterSync.st+' rs='+afterSync.rs+' → avail='+afterSync.avail+'\n\n'
-    + 'oldDelivered='+oldDelivered+' nowDelivered='+nowDelivered);
   hasUnsavedChanges = true;
   updateSaveBtn();
   closeModal('modal-edit');
